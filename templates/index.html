@@ -11,7 +11,7 @@
             <img class="avatar" src="/static/img/GZqmPRmXYA0yv11 pfp.jpeg" alt="Photo Profile">
         </div>
         <div class="hero-details">
-            <p class="bio">NPC Pacil</p>
+            <p class="bio">Passionate and dedicated Computer Science student at Universitas Indonesia with a 3.98 GPA, blending strong academic performance with practical experience in full-stack web development and technical education. Skilled in building scalable applications using modern technology stacks like Next.js, Hono, and PostgreSQL, while also serving as a dedicated Teaching Assistant for programming fundamentals and digital systems. Proven ability to architect complex platforms and lead teams, combined with a passion for competitive programming and data science, eager to leverage these technical and leadership skills to create impactful, innovative software solutions.</p>
             <dl class="meta-list">
                 <div class="meta-row">
                     <dt>NPM</dt>
@@ -30,4 +30,26 @@
         </div>
     </div>
 </section>
+<section class="experiences" id="experiences">
+    <div class="container">
+        <h1 class="section-title">Experiences</h1>
+        <ol class="timeline">
+            {% for experience in experiences %}
+            <li class="timeline-item">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content">
+                    <h3>{{ experience.title }}</h3>
+                    <p class="timeline-meta">{{ experience.meta }}</p>
+                    {% if experience.description %}
+                    <div class="timeline-description">
+                        <p>{{ experience.description | linebreaksbr }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+</section>
+
 {% endblock %}

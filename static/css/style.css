@@ -169,6 +169,64 @@ h1, .brand {
     border: 3px solid var(--ink);
 }
 
+.experiences {
+    padding: 3rem 0 5rem;
+    border-top: 1px solid var(--line);
+}
+
+.section-title {
+    font-size: 1.75rem;
+    margin-bottom: 2rem;
+}
+
+.timeline {
+    list-style: none;
+    position: relative;
+    padding-left: 1.75rem;
+}
+
+.timeline::before {
+    content: "";
+    position: absolute;
+    top: 0.35rem;
+    bottom: 0.35rem;
+    left: 0.3rem;
+    width: 2px;
+    background-color: var(--line);
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 3rem;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    top: 0.35rem;
+    left: -1.75rem;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background-color: var(--accent);
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.timeline-content h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+}
+
+.timeline-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
 .site-footer {
     padding: 1.5rem;
     color: var(--text-muted);
