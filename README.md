@@ -6,6 +6,53 @@ NPM : 2506601956
 
 Kelas : PBP B
 
+# Cara Menjalankan Proyek
+
+Berikut langkah-langkah untuk menjalankan proyek ini secara lokal.
+
+1. **Clone repository** (jika belum punya salinannya) lalu masuk ke direktori proyek:
+   ```bash
+   git clone <url-repository>
+   cd myportofolio
+   ```
+
+2. **Buat dan aktifkan virtual environment**:
+   ```bash
+   python -m venv env
+   ```
+   - Windows:
+     ```bash
+     env\Scripts\activate
+     ```
+   - macOS / Linux:
+     ```bash
+     source env/bin/activate
+     ```
+
+3. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **(Opsional) Siapkan file `.env`** di root proyek bila dibutuhkan. Proyek ini membaca environment variables dengan `python-dotenv` (contohnya `PRODUCTION`), namun untuk menjalankan secara lokal umumnya tidak wajib diisi karena sudah ada nilai default.
+
+5. **(Opsional) Jalankan migrasi database** (bila belum ada `db.sqlite3` atau ada perubahan model):
+   ```bash
+   python manage.py migrate
+   ```
+
+6. **Jalankan server development**:
+   ```bash
+   python manage.py runserver
+   ```
+
+7. **Buka aplikasi** di browser pada alamat yang muncul di terminal, biasanya:
+   ```
+   http://127.0.0.1:8000/
+   ```
+
+> Catatan: pastikan `manage.py` berada satu level dengan direktori `portofolio/` saat menjalankan perintah di atas (root proyek).
+
 # Dokumentasi & AI Disclosure
 
 Untuk branching, saya memutuskan menggunakan branch bertahap dari branch dev ke branch main, dengan alasan agar mempermudah proses review dan mengurangi risiko error yang mungkin terjadi.
