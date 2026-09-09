@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="experiences" id="experiences">
+    <div class="container">
+        <h1 class="section-title">Experiences</h1>
+        <ol class="timeline">
+            {% for experience in experiences %}
+            <li class="timeline-item">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content">
+                    <h3>{{ experience.title }}</h3>
+                    <p class="timeline-meta">
+                        {{ experience.organization }} &middot; {{ experience.get_category_display }} &middot;
+                        {{ experience.started_at|date:"M Y" }} -
+                        {% if experience.is_ongoing %}Present{% else %}{{ experience.ended_at|date:"M Y" }}{% endif %}
+                    </p>
+                    {% if experience.description %}
+                    <div class="timeline-description">
+                        <p>{{ experience.description | linebreaksbr }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+</section>
+{% endblock %}
