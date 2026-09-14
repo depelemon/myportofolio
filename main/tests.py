@@ -1,8 +1,10 @@
+from datetime import date
+
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from main.models import Experience
+from main.models import Experience, Music
 
 
 class MainTest(TestCase):
@@ -57,3 +59,42 @@ class MainTest(TestCase):
         self.assertFalse(self.experience.is_ongoing)
         self.assertContains(response, "Selesai")
         self.assertNotContains(response, "Sedang berlangsung")
+
+
+class MusicTest(TestCase):
+    def test_music_url_uses_music_template(self):
+        response = self.client.get(reverse("main:show_music"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "music.html")
+        self.assertContains(response, f'href="{reverse("main:show_music")}"')
+
+    def test_music_page_shows_music_data(self):
+        music = Music.objects.create(
+            name="Lagu Tugas Akhir",
+            description="Aransemen piano untuk tugas akhir semester.",
+            released_at=date(2026, 5, 17),
+            audio_path="audio/lagu-tugas-akhir.mp3",
+        )
+        response = self.client.get(reverse("main:show_music"))
+
+        self.assertContains(response, music.name)
+        self.assertContains(response, music.description)
+        self.assertContains(response, "17 May 2026")
+        self.assertContains(response, 'src="/static/audio/lagu-tugas-akhir.mp3"')
+        self.assertNotContains(response, "Belum ada musik yang ditambahkan.")
+
+    def test_music_audio_path_is_normalized(self):
+        music = Music.objects.create(
+            name="Main Menu",
+            description="Musik menu utama.",
+            released_at=date(2026, 9, 14),
+            audio_path="static\\audio\\main_menu.mp3",
+        )
+
+        self.assertEqual(music.audio_path, "audio/main_menu.mp3")
+
+    def test_empty_music_page_shows_empty_message(self):
+        response = self.client.get(reverse("main:show_music"))
+
+        self.assertContains(response, "Belum ada musik yang ditambahkan.")
