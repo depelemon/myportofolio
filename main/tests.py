@@ -84,6 +84,16 @@ class MusicTest(TestCase):
         self.assertContains(response, 'src="/static/audio/lagu-tugas-akhir.mp3"')
         self.assertNotContains(response, "Belum ada musik yang ditambahkan.")
 
+    def test_music_audio_path_is_normalized(self):
+        music = Music.objects.create(
+            name="Main Menu",
+            description="Musik menu utama.",
+            released_at=date(2026, 9, 14),
+            audio_path="static\\audio\\main_menu.mp3",
+        )
+
+        self.assertEqual(music.audio_path, "audio/main_menu.mp3")
+
     def test_empty_music_page_shows_empty_message(self):
         response = self.client.get(reverse("main:show_music"))
 
