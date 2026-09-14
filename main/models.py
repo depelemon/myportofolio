@@ -25,3 +25,24 @@ class Experience(models.Model):
     @property
     def is_ongoing(self):
         return self.ended_at is None
+
+
+class Music(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    description = models.TextField()
+    released_at = models.DateField()
+    audio_path = models.CharField(max_length=255)
+
+    class Meta:
+        ordering = ["-released_at"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        path = self.audio_path.strip().replace("\\", "/").lstrip("/")
+        if path.startswith("static/"):
+            path = path.removeprefix("static/")
+        self.audio_path = path
+        super().save(*args, **kwargs)

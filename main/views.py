@@ -3,7 +3,7 @@ import json
 from django.conf import settings
 from django.shortcuts import render
 
-from main.models import Experience
+from main.models import Experience, Music
 
 def show_main(request):
     context = {
@@ -28,5 +28,9 @@ def show_experiences(request):
 def projects_page(request):
     return render(request, "projects.html", {"name": "David Liman"})
 
-def portfolio_page(request):
-    return render(request, "portfolio.html", {"name": "David Liman"})
+def show_music(request):
+    context = {
+        "name": "David Liman",
+        "music_list": Music.objects.all(),
+    }
+    return render(request, "music.html", context)
