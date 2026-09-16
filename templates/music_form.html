@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Add Music - {{ name }}{% endblock %}
+{% block content %}
+<section class="music-form-section">
+    <div class="container">
+        <a href="{% url 'main:show_music' %}" class="back-link">&larr; Kembali ke musik</a>
+        <h1>Add New Music</h1>
+        <form method="post" action="{% url 'main:create_music' %}" class="music-form">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-group">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                        <p class="form-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="button">Tambah Musik</button>
+            <a href="{% url 'main:show_music' %}" class="button button-secondary">Batal</a>
+        </form>
+    </div>
+</section>
+{% endblock content %}

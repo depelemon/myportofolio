@@ -1,0 +1,43 @@
+<p class="music-status">
+    <button type="button"
+            class="button button-danger"
+            popovertarget="delete-music-{{ music.id }}"
+            aria-label="Hapus {{ music.name }}"
+            title="Hapus musik">
+        Hapus Musik
+    </button>
+</p>
+<div id="delete-music-{{ music.id }}"
+     class="music-delete-modal"
+     popover="auto"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="delete-music-title-{{ music.id }}">
+    <button type="button"
+            class="music-delete-modal__backdrop"
+            popovertarget="delete-music-{{ music.id }}"
+            popovertargetaction="hide"
+            aria-label="Tutup konfirmasi hapus"></button>
+    <div class="music-delete-modal__content">
+        <button type="button"
+                class="music-delete-modal__close"
+                popovertarget="delete-music-{{ music.id }}"
+                popovertargetaction="hide"
+                aria-label="Tutup konfirmasi hapus">×</button>
+        <h2 id="delete-music-title-{{ music.id }}">Hapus Musik?</h2>
+        <p>
+            Apakah Anda yakin ingin menghapus
+            <strong>{{ music.name }}</strong>?
+        </p>
+        <div class="music-delete-modal__actions">
+            <button type="button"
+                    class="button button-secondary"
+                    popovertarget="delete-music-{{ music.id }}"
+                    popovertargetaction="hide">Batal</button>
+            <form method="post" action="{% url 'main:delete_music' music.id %}">
+                {% csrf_token %}
+                <button type="submit" class="button button-danger">Ya, Hapus</button>
+            </form>
+        </div>
+    </div>
+</div>
