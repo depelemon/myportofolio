@@ -22,10 +22,12 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "david-liman-myportofolio.pws.cs.ui.ac.id",
     ".koyeb.app",
+    "www.depelemon.dev",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "https://david-liman-myportofolio.pws.cs.ui.ac.id",
     "https://*.koyeb.app",
+    "https://www.depelemon.dev"
 ]
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 
