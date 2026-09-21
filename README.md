@@ -60,37 +60,19 @@ Untuk branching, saya memutuskan menggunakan branch bertahap dari branch dev ke 
 
 Untuk setiap fitur baru yang signifikan, akan ada branch baru yang dibuat dari branch dev (contohnya feat/<feature-name></feature>). Dengan melakukan branching bertahap, setiap perubahan dapat diuji secara terpisah sebelum digabungkan ke branch utama, sehingga meminimalkan potensi konflik dan memastikan stabilitas kode.
 
-# AI Disclosure (last upd: Tugas Individu 2)
+# AI Disclosure (last upd: Tugas Individu 3)
 
-saya menggunakan Claude Code dan Copilot (BYOK dengan API key dari DeepSeek), serta Claude via Web Browser untuk membantu proses pembelajaran di Tugas Individu 1 ini. Claude via Web Browser saya gunakan untuk menanyakan konsep-konsep Web Development, sedangkan Claude Code dan Copilot untuk agentic atau untuk pertanyaan yang membutuhkan konteks kode.
+Saya menggunakan Claude Code dan Copilot (BYOK dengan API key dari DeepSeek), serta Claude via Web Browser untuk membantu proses pembelajaran di Tugas Individu 1 ini. Claude via Web Browser saya gunakan untuk menanyakan konsep-konsep Web Development, sedangkan Claude Code dan Copilot untuk agentic atau untuk pertanyaan yang membutuhkan konteks kode.
 
-Contoh prompt yang saya gunakan:
+Prompt yang saya gunakan:
 
 ```
-1. Tambahkan satu model baru pada aplikasi main yang merepresentasikan bagian portofolio pilihanmu.
-2. Model tersebut memiliki minimal tiga field selain primary key (id, baik dibuat otomatis oleh Django maupun ditentukan sendiri), dengan tipe data yang sesuai.
-3. Buat dan terapkan migrasi model, lalu sertakan berkas migrasinya dalam commit.
-4. Buat sebuah view yang mengambil data dari model, memasukkannya ke dalam context, dan meneruskannya ke template baru.
-5. Tampilkan seluruh objek menggunakan perulangan Django Template Language dan sediakan tampilan untuk kondisi ketika data masih kosong.
-6. Data pada bagian portofolio baru tidak ditulis langsung (hard-coded) di HTML. Teks antarmuka statis, seperti judul halaman, label navigasi, dan isi footer, tetap boleh ditulis di template.
-7. Daftarkan named route pada main/urls.py dengan URL yang berbeda dari halaman utama.
-8. Tambahkan tautan menuju halaman baru pada navbar menggunakan tag {% url %}. Pastikan navbar dan footer konsisten dengan halaman lain.
-9. Tambahkan unit test yang mencakup minimal tiga kasus pengujian:
-9a. URL dapat diakses dan menggunakan template yang tepat.
-9b. Data model muncul di halaman HTML ketika ada data.
-9c. Halaman HTML menampilkan pesan kondisi kosong ketika belum ada data.
-10. Pastikan proyek dapat dijalankan dengan python manage.py runserver tanpa error dan seluruh test lulus ketika menjalankan python manage.py test.
-
-Sekarang page bernamakan "Portfolio", untuk membedakan dengan root folder, ubah jadi "Music" (jadi isinya portfolio musik)
-Tolong kerjakan tugas-tugas ini untuk item-item di @templates/music.html (ubah portfolio.html jadi music.html), dengan field:
-
-- Nama
-- Deskripsi
-- Tanggal
-- Audio file yang nanti akan aku simpan di dalam static folder, jadi di database disimpan sebagai path string aja
-
-Buat apps baru bertajuk `music`, seperti apps @templates/experiences.html yang ada sekarang. Penuhi setiap syarat yang ada, serta jangan memakai commnent apapun untuk menjelaskan tulisan kode kamu, jelaskan secara rinci di dalam chat saja
-
+1. make sure every html extends index.html
+2. make a ProjectForm, take context from the Project model in models.py
+3. add create, update, delete, in views.py for Projects, use json and serializers, take music's endpoint for example.
+4. update css, since some aspects are similar to music's form, might want to rename the css' class/id to make it more general
+5. complete the projects_form.html and projects.html
+6. add api endpoint in urls.py for api/project
 ```
 
 Selengkapnya bisa dilihat di log Claude Code dalam bentuk JSONL [di sini](https://drive.google.com/file/d/1EbFrMbnWK_ZQVrMlb2Ing-Z9RlkdiWsQ/view?usp=sharing)
@@ -151,3 +133,40 @@ Singkatnya, `makemigrations` menulis rencana perubahan, sedangkan `migrate` meng
 Contoh yang saya alami di tugas ini adalah saat menambahkan model `Music`. Setelah menulis class `Music` di `models.py`, saya menjalankan `python manage.py makemigrations`, yang menghasilkan file `main/migrations/0004_music.py` berisi operasi `Create model Music`. Pada tahap ini tabelnya belum ada, sehingga membuka `/music/` akan error `no such table: main_music`. Setelah itu saya menjalankan `python manage.py migrate` untuk benar-benar membuat tabel `main_music` di database. Saat deploy ke PWS, file `0004_music.py` yang sudah di-commit tinggal dijalankan dengan `migrate` agar database production ikut punya tabel yang sama.
 
 Contoh lain yang juga membutuhkan kedua perintah: menambah field baru (misalnya `duration = models.DurationField()` pada `Music`), menghapus atau mengganti nama field, atau mengubah tipe dan atribut field, seperti migrasi `0003_alter_experience_started_at.py` di proyek ini. Sebaliknya, perubahan yang tidak memengaruhi struktur tabel, seperti menambah method `save()` untuk merapikan `audio_path` atau mengubah `__str__`, tidak memerlukan migrasi (`makemigrations` akan melaporkan "No changes detected").
+
+### Tugas 3
+
+1. Jelaskan mengapa kita menggunakan `ModelForm` pada Django alih-alih membuat form HTML secara manual. Selain itu, jelaskan pula mengapa kita diwajibkan menambahkan `{% csrf_token %}` pada form tersebut!
+
+Jawab:
+
+Sebagai salah satu prinsip DRY, yaitu tidak mengulang apa yang sudah ditulis di models.py. Fields-fields diambil dari models.py instead of ditulis ulang. Selain itu, validasi jadi otomatis mengikuti ketentuan yang ditulis di models.py juga (misalnya 255 karakter, tipe data apa, dll.)
+
+Kode di template HTML juga dapat menjadi lebih singkat, dengan satu loop `{% for field in form %}`, dibanding semua field dihard-code di template.
+
+Terakhir, hanya data dari ``Meta.fields`` yang diproses, jadi lebih aman dibanding input mentah jika membuat form HTML.
+
+Pertanyaan kedua, mengapa CSRF token wajib? CSRF (atau Cross Site Request Forgery) adalah serangan yang memanfaatkan fakta bahwa browser otomatis menyertakan cookie session ke domain tujuan, bahkan untuk request yang dipicu dari situs lain. Contohnya, saat saya sedang login di situs portofolio ini lalu membuka situs jahat yang berisi form tersembunyi yang mem-POST ke `/projects/<id>/delete/` dan disubmit otomatis lewat JavaScript, browser akan mengirim request itu beserta cookie session saya, sehingga server mengira itu request sah dan proyek saya terhapus. Penyerang tidak perlu mencuri cookie-nya.
+
+Jika ada `{% csrf_token %}`, setiap POST harus menyertakan token acak yang unik per session, dan server memeriksanya lewat `CsrfViewMiddleware`. Situs jahat tidak dapat membaca token tersebut (same-origin policy), sehingga request palsu itu ditolak dengan error 403.
+
+2. Pada Tutorial 03, kita membahas format data JSON dan XML. Mengapa JSON lebih disukai dalam pengembangan aplikasi web modern dibandingkan XML?
+
+Jawab:
+JSON lebih disukai karena ringkas, lebih kecil, dan lebih cepat diparsing, selain itu JSON lebih mudah dibaca (``{ "name": "David" }`` vs ``<name>David</name>``), dan ada juga aspek familiaritas/kemiripan dengan struktur data modern seperti object/array/dictionary. JSON juga lebih mudah diolah di JavaScript, karena formatnya mirip dengan object literal JS. Selain itu, JSON punya tipe bawaan untuk object, array, string, number, boolean, dan null, sehingga langsung cocok dengan dict/list di Python, sedangkan XML lebih verbose dan tipe datanya harus ditafsirkan sendiri. Perlu dicatat bahwa REST API sebenarnya juga boleh memakai XML (Django pun bisa `serialize("xml", ...)`), tetapi JSON menjadi konvensi yang dominan karena alasan-alasan di atas.
+
+3. Jelaskan alur yang terjadi saat kamu menggunakan fungsi view untuk mengembalikan data portofoliomu dalam bentuk JSON. Mengapa kita perlu melakukan proses serialization pada model Django sebelum datanya dikembalikan?
+
+Jawab:
+Alur pada endpoint `api/project/` (fungsi `get_projects_json` di `views.py`):
+
+- Browser mengirim `GET /api/project/` (dengan query seperti `?title=web` optsional)
+- Request melewati middleware, lalu urls.py di portofolio meneruskan request ke urls.py di main app, yang memetakan path `api/project/` ke fungsi `get_projects_json`.
+- Fungsi tersebut membaca query `title` dari `request.GET`, lalu mengambil data lewat ORM: `Project.objects.all()`, dan menyaringnya dengan `filter(title__icontains=...)` bila ada query.
+- Hasilnya berupa QuerySet berisi objek model Python, yang kemudian diubah menjadi string JSON dengan `serializers.serialize("json", projects)`.
+- String JSON itu dibungkus dengan `HttpResponse(..., content_type="application/json")` dan dikirim kembali ke client, sehingga client tahu bahwa isinya JSON dan bukan HTML.
+- Untuk halaman `/projects/`, fungsi `show_projects` memanggil `get_projects_json`, mendeserialisasi hasilnya dengan `serializers.deserialize("json", ...)` menjadi objek `Project`, lalu mengirimnya sebagai context ke `projects.html` untuk dirender menjadi HTML.
+
+Mengapa perlu serialization? Karena HTTP hanya membawa teks (byte), sedangkan objek model seperti `Project` hanyalah struktur di memori Python yang tidak bisa langsung dikirim, dan client seperti JavaScript atau aplikasi mobile juga tidak mengenal objek Python. Serialization mengubah objek menjadi format standar (JSON) yang bisa dikirim dan dipahami client mana pun. Serializer Django juga menangani tipe data khusus seperti `UUIDField` (`id`) dan `DateField` (`released_at`) yang bukan tipe bawaan JSON dengan mengubahnya menjadi string yang valid, dan hasilnya bisa dideserialisasi kembali menjadi objek model.
+
+Endpoint JSON hanya mengirim data tanpa tampilan, sehingga bisa dipakai ulang oleh banyak client, tidak hanya browser. Untuk halaman HTML saja sebenarnya `Project.objects.all()` langsung ke template sudah cukup; di proyek ini `show_projects` sengaja memutar lewat serialize lalu deserialize untuk mengikuti pola endpoint music dan menunjukkan alur serialization.
