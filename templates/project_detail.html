@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} - {{ name }}{% endblock %}
+{% block content %}
+<section class="project-detail">
+    <div class="container">
+        <a href="{% url 'main:show_projects' %}" class="back-link">&larr; Kembali ke proyek</a>
+        <p class="item-date">{{ project.released_at|date:"d M Y" }}</p>
+        <h1>{{ project.title }}</h1>
+        {% if project.thumbnail %}
+        <img class="item-thumbnail" src="{{ project.thumbnail }}" alt="Thumbnail {{ project.title }}">
+        {% endif %}
+        <p class="project-detail__description">{{ project.description|linebreaksbr }}</p>
+        <div class="project-detail__actions">
+            <a href="{% url 'main:update_project' project.id %}" class="button">Edit Proyek</a>
+            {% include "components/project_delete_modal.html" with project=project %}
+        </div>
+    </div>
+</section>
+{% endblock %}

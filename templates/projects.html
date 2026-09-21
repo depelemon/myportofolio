@@ -1,6 +1,47 @@
 {% extends "base.html" %}
+{% block title %}Projects - {{ name }}{% endblock %}
 {% block content %}
-<section class="container">
-    <h1>Projects</h1>
+<section class="listing" id="projects">
+    <div class="container">
+        <a href="{% url 'main:show_main' %}" class="back-link">&larr; Kembali ke profil</a>
+        <div class="page-header">
+            <h1 class="section-title">Projects</h1>
+            <a href="{% url 'main:create_project' %}" class="button add-button">
+                <span aria-hidden="true">+</span>
+                Tambah Proyek
+            </a>
+        </div>
+        <form method="get"
+              action="{% url 'main:show_projects' %}"
+              class="search-form">
+            <input type="search"
+                   name="title"
+                   value="{{ title_query }}"
+                   placeholder="Cari berdasarkan judul proyek"
+                   class="search-form__input"
+                   aria-label="Cari berdasarkan judul proyek">
+            <button type="submit" class="button">Cari</button>
+        </form>
+        <ul class="item-list">
+            {% for project in project_list %}
+            <li class="item-card item-card--link">
+                <a href="{% url 'main:project_detail' project.id %}" class="item-card__link">
+                    {% if project.thumbnail %}
+                    <img class="item-thumbnail" src="{{ project.thumbnail }}" alt="Thumbnail {{ project.title }}" loading="lazy">
+                    {% endif %}
+                    <p class="item-date">{{ project.released_at|date:"d M Y" }}</p>
+                    <h2 class="item-card__title">{{ project.title }}</h2>
+                    <p class="item-description">{{ project.description|truncatechars:100 }}</p>
+                </a>
+            </li>
+            {% empty %}
+                {% if title_query %}
+                    <li class="item-empty">Tidak ada proyek dengan judul tersebut.</li>
+                {% else %}
+                    <li class="item-empty">Belum ada proyek yang ditambahkan.</li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
 </section>
 {% endblock %}

@@ -1,6 +1,6 @@
-from django.forms import ModelForm, TextInput, Textarea, DateInput
+from django.forms import ModelForm, TextInput, Textarea, DateInput, URLInput
 
-from main.models import Music
+from main.models import Music, Project
 
 class MusicForm(ModelForm):
     class Meta:
@@ -41,6 +41,50 @@ class MusicForm(ModelForm):
                 attrs={
                     "placeholder": "audio/lagu-tugas-akhir.mp3",
                     "maxlength": 255,
+                }
+            ),
+        }
+
+
+class ProjectForm(ModelForm):
+    class Meta:
+        model = Project
+        fields = [
+            "title",
+            "description",
+            "released_at",
+            "thumbnail",
+        ]
+
+        labels = {
+            "title": "Judul Proyek",
+            "description": "Deskripsi Proyek",
+            "released_at": "Tanggal Rilis",
+            "thumbnail": "URL Thumbnail",
+        }
+
+        widgets = {
+            "title": TextInput(
+                attrs={
+                    "placeholder": "Website Portofolio",
+                    "maxlength": 255,
+                }
+            ),
+            "description": Textarea(
+                attrs={
+                    "placeholder": "Ceritakan Proyekmu",
+                    "rows": 4,
+                }
+            ),
+            "released_at": DateInput(
+                format="%Y-%m-%d",
+                attrs={
+                    "type": "date",
+                },
+            ),
+            "thumbnail": URLInput(
+                attrs={
+                    "placeholder": "https://example.com/thumbnail.png",
                 }
             ),
         }

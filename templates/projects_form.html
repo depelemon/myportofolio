@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{% if project %}Edit Project{% else %}Add Project{% endif %} - {{ name }}{% endblock %}
+{% block content %}
+<section class="form-section">
+    <div class="container">
+        {% if project %}
+        <a href="{% url 'main:project_detail' project.id %}" class="back-link">&larr; Kembali ke detail proyek</a>
+        <h1>Edit Project</h1>
+        {% else %}
+        <a href="{% url 'main:show_projects' %}" class="back-link">&larr; Kembali ke proyek</a>
+        <h1>Add New Project</h1>
+        {% endif %}
+        <form method="post" class="entity-form">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-group">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                        <p class="form-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="button">{% if project %}Simpan Perubahan{% else %}Tambah Proyek{% endif %}</button>
+            <a href="{% if project %}{% url 'main:project_detail' project.id %}{% else %}{% url 'main:show_projects' %}{% endif %}" class="button button-secondary">Batal</a>
+        </form>
+    </div>
+</section>
+{% endblock content %}

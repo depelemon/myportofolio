@@ -229,25 +229,25 @@ h1, .brand {
     color: var(--text-muted);
 }
 
-.music {
+.listing {
     padding: 3rem 0 5rem;
     border-top: 1px solid var(--line);
 }
 
-.music-list {
+.item-list {
     list-style: none;
     display: grid;
     gap: 1rem;
 }
 
-.music-card {
+.item-card {
     padding: 1.25rem;
     background-color: #fff;
     border: 1px solid var(--line);
     border-radius: var(--radius);
 }
 
-.music-date {
+.item-date {
     color: var(--accent-dark);
     font-size: 0.75rem;
     font-weight: 700;
@@ -255,13 +255,13 @@ h1, .brand {
     text-transform: uppercase;
 }
 
-.music-card h3 {
+.item-card h3 {
     font-size: 1.15rem;
     margin: 0.35rem 0;
 }
 
-.music-description,
-.music-empty {
+.item-description,
+.item-empty {
     color: var(--text-muted);
 }
 
@@ -271,7 +271,7 @@ h1, .brand {
     margin-top: 1rem;
 }
 
-.music-header {
+.page-header {
     width: 100%;
     display: flex;
     justify-content: space-between;
@@ -280,28 +280,28 @@ h1, .brand {
     margin-bottom: 1.5rem;
 }
 
-.music-header .section-title {
+.page-header .section-title {
     margin-bottom: 0;
 }
 
-.music-add-button {
+.add-button {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
 }
 
-.music-add-button span {
+.add-button span {
     font-size: 1.25rem;
     line-height: 1;
 }
 
-.music-search {
+.search-form {
     display: flex;
     gap: 0.75rem;
     margin-bottom: 1.5rem;
 }
 
-.music-search__input {
+.search-form__input {
     width: 100%;
     min-width: 0;
     padding: 0.7rem;
@@ -312,20 +312,20 @@ h1, .brand {
     font: inherit;
 }
 
-.music-search__input:focus {
+.search-form__input:focus {
     outline: 2px solid var(--accent);
     border-color: var(--accent);
 }
 
-.music-card-actions {
+.item-card-actions {
     margin-top: 1rem;
 }
 
-.music-status {
+.item-status {
     margin-top: 0;
 }
 
-.music-delete-modal {
+.delete-modal {
     display: none;
     position: fixed;
     inset: 0;
@@ -342,11 +342,11 @@ h1, .brand {
     justify-content: center;
 }
 
-.music-delete-modal:popover-open {
+.delete-modal:popover-open {
     display: flex;
 }
 
-.music-delete-modal__backdrop {
+.delete-modal__backdrop {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -357,7 +357,7 @@ h1, .brand {
     cursor: default;
 }
 
-.music-delete-modal__content {
+.delete-modal__content {
     position: relative;
     z-index: 1;
     width: min(100%, 480px);
@@ -368,7 +368,7 @@ h1, .brand {
     box-shadow: 0 1rem 3rem rgba(28, 25, 23, 0.22);
 }
 
-.music-delete-modal__content h2 {
+.delete-modal__content h2 {
     margin: 0 0 0.75rem;
     font-family:
         "Space Grotesk",
@@ -377,7 +377,7 @@ h1, .brand {
     font-size: 1.5rem;
 }
 
-.music-delete-modal__close {
+.delete-modal__close {
     position: absolute;
     top: 1rem;
     right: 1rem;
@@ -390,7 +390,7 @@ h1, .brand {
     cursor: pointer;
 }
 
-.music-delete-modal__actions {
+.delete-modal__actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.75rem;
@@ -425,40 +425,40 @@ h1, .brand {
         justify-content: flex-start;
     }
 
-    .music-header {
+    .page-header {
         align-items: flex-start;
         flex-direction: column;
     }
 
-    .music-add-button {
+    .add-button {
         width: 100%;
         justify-content: center;
     }
 
-    .music-search {
+    .search-form {
         flex-direction: column;
     }
 
-    .music-search .button {
+    .search-form .button {
         width: 100%;
     }
 
-    .music-delete-modal {
+    .delete-modal {
         align-items: flex-end;
         padding: 0;
     }
 
-    .music-delete-modal__content {
+    .delete-modal__content {
         width: 100%;
         padding: 1.25rem;
         border-radius: var(--radius) var(--radius) 0 0;
     }
 
-    .music-delete-modal__actions {
+    .delete-modal__actions {
         flex-direction: column-reverse;
     }
 
-    .music-delete-modal__actions .button {
+    .delete-modal__actions .button {
         width: 100%;
         text-align: center;
     }
@@ -522,12 +522,12 @@ h1, .brand {
 
 /* CSS for music form */
 
-.music-form-section {
+.form-section {
     padding: 4rem 0;
     border-top: 1px solid var(--line);
 }
 
-.music-form-section h1 {
+.form-section h1 {
     margin: 0.4rem 0 1.5rem;
     font-size: 2rem;
 }
@@ -545,7 +545,7 @@ h1, .brand {
     text-decoration: underline;
 }
 
-.music-form {
+.entity-form {
     width: 100%;
     max-width: 100%;
     margin-top: 1.5rem;
@@ -602,4 +602,81 @@ h1, .brand {
 
 .button-secondary {
     background: var(--ink);
+}
+
+/* CSS for projects */
+
+.item-card--link {
+    padding: 0;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+}
+
+.item-card--link:hover {
+    border-color: var(--accent);
+}
+
+.item-card__link {
+    display: block;
+    padding: 1.25rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.item-card__title {
+    font-size: 1.15rem;
+    margin: 0.35rem 0;
+}
+
+.item-thumbnail {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    margin-bottom: 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background-color: var(--paper);
+}
+
+.project-detail {
+    padding: 3rem 0 5rem;
+    border-top: 1px solid var(--line);
+}
+
+.project-detail h1 {
+    margin: 0.4rem 0 1rem;
+    font-size: 2rem;
+}
+
+.project-detail .item-thumbnail {
+    max-width: 640px;
+}
+
+.project-detail__description {
+    max-width: 640px;
+    color: var(--text-muted);
+}
+
+.project-detail__actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 2rem;
+}
+
+.project-detail__actions .item-status {
+    margin: 0;
+}
+
+@media (max-width: 600px) {
+    .project-detail__actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .project-detail__actions .button {
+        width: 100%;
+        text-align: center;
+    }
 }

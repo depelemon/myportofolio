@@ -1,40 +1,40 @@
 <p class="item-status">
     <button type="button"
             class="button button-danger"
-            popovertarget="delete-music-{{ music.id }}"
-            aria-label="Hapus {{ music.name }}"
-            title="Hapus musik">
-        Hapus Musik
+            popovertarget="delete-project-{{ project.id }}"
+            aria-label="Hapus {{ project.title }}"
+            title="Hapus proyek">
+        Hapus Proyek
     </button>
 </p>
-<div id="delete-music-{{ music.id }}"
+<div id="delete-project-{{ project.id }}"
      class="delete-modal"
      popover="auto"
      role="dialog"
      aria-modal="true"
-     aria-labelledby="delete-music-title-{{ music.id }}">
+     aria-labelledby="delete-project-title-{{ project.id }}">
     <button type="button"
             class="delete-modal__backdrop"
-            popovertarget="delete-music-{{ music.id }}"
+            popovertarget="delete-project-{{ project.id }}"
             popovertargetaction="hide"
             aria-label="Tutup konfirmasi hapus"></button>
     <div class="delete-modal__content">
         <button type="button"
                 class="delete-modal__close"
-                popovertarget="delete-music-{{ music.id }}"
+                popovertarget="delete-project-{{ project.id }}"
                 popovertargetaction="hide"
                 aria-label="Tutup konfirmasi hapus">×</button>
-        <h2 id="delete-music-title-{{ music.id }}">Hapus Musik?</h2>
+        <h2 id="delete-project-title-{{ project.id }}">Hapus Proyek?</h2>
         <p>
             Apakah Anda yakin ingin menghapus
-            <strong>{{ music.name }}</strong>?
+            <strong>{{ project.title }}</strong>?
         </p>
         <div class="delete-modal__actions">
             <button type="button"
                     class="button button-secondary"
-                    popovertarget="delete-music-{{ music.id }}"
+                    popovertarget="delete-project-{{ project.id }}"
                     popovertargetaction="hide">Batal</button>
-            <form method="post" action="{% url 'main:delete_music' music.id %}">
+            <form method="post" action="{% url 'main:delete_project' project.id %}">
                 {% csrf_token %}
                 <button type="submit" class="button button-danger">Ya, Hapus</button>
             </form>
