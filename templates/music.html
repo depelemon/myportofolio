@@ -7,10 +7,13 @@
         <a href="{% url 'main:show_main' %}" class="back-link">&larr; Kembali ke profil</a>
         <div class="page-header">
             <h1 class="section-title">Music</h1>
-            <a href="{% url 'main:create_music' %}" class="button add-button">
-                <span aria-hidden="true">+</span>
-                Tambah Musik
-            </a>
+            {% if user.is_superuser %} 
+                <a href="{% url 'main:create_music' %}"
+                class="button project-add-button">
+                    <span aria-hidden="true">+</span>
+                    Tambah Musik
+                </a>
+            {% endif %}   
         </div>
         <form method="get"
               action="{% url 'main:show_music' %}"
@@ -33,7 +36,9 @@
                     Browser kamu tidak mendukung pemutar audio.
                 </audio>
                 <div class="item-card-actions">
-                    {% include "components/music_delete_modal.html" with music=music %}
+                    {% if user.is_superuser %}  {# Tambahkan baris ini #}
+                        {% include "components/music_delete_modal.html" with music=music %}
+                    {% endif %}                 {# Tambahkan baris ini #}
                 </div>
             </li>
             {% empty %}
