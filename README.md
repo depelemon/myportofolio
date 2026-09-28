@@ -36,23 +36,78 @@ Berikut langkah-langkah untuk menjalankan proyek ini secara lokal.
    pip install -r requirements.txt
    ```
 4. **(Opsional) Siapkan file `.env`** di root proyek bila dibutuhkan. Proyek ini membaca environment variables dengan `python-dotenv` (contohnya `PRODUCTION`), namun untuk menjalankan secara lokal umumnya tidak wajib diisi karena sudah ada nilai default.
-5. **(Opsional) Jalankan migrasi database** (bila belum ada `db.sqlite3` atau ada perubahan model):
+5. **Jalankan migrasi database** (wajib setelah pull Tugas 4, karena ada migrasi relasi star pada Music dan pembuatan grup `Editor`):
 
    ```bash
    python manage.py migrate
    ```
-6. **Jalankan server development**:
+6. **(Opsional) Siapkan akun untuk tiap peran** (lihat bagian [Tugas 4](#tugas-4-autentikasi-otorisasi-dan-star) di bawah):
+
+   ```bash
+   python manage.py createsuperuser
+   ```
+7. **Jalankan server development**:
 
    ```bash
    python manage.py runserver
    ```
-7. **Buka aplikasi** di browser pada alamat yang muncul di terminal, biasanya:
+8. **Buka aplikasi** di browser pada alamat yang muncul di terminal, biasanya:
 
    ```
    http://127.0.0.1:8000/
    ```
+9. **(Opsional) Jalankan test**:
+
+   ```bash
+   python manage.py test main
+   ```
 
 > Catatan: pastikan `manage.py` berada satu level dengan direktori `portofolio/` saat menjalankan perintah di atas (root proyek).
+
+# Progres Mingguan
+
+## Tugas 4: Autentikasi, Otorisasi, dan Star
+
+Bagian portofolio dari Tugas 3 (**Music**) sekarang mengikuti hak akses pengguna. Pola yang sama juga diterapkan ke **Projects**.
+
+### Hak akses
+
+| Peran | Cara mendapatkan | Baca daftar & detail | Star / unstar | Ubah data | Buat & hapus data |
+| --- | --- | :---: | :---: | :---: | :---: |
+| Pengunjung | tidak login | ✅ | ➡️ diarahkan ke login | ➡️ diarahkan ke login | ➡️ diarahkan ke login |
+| Pengguna biasa | registrasi di `/register/` | ✅ | ✅ | ❌ 403 | ❌ 403 |
+| Editor | anggota grup `Editor` | ✅ | ✅ | ✅ | ❌ 403 |
+| Pemilik portofolio | superuser | ✅ | ✅ | ✅ | ✅ |
+
+Pemeriksaan dilakukan di sisi server lewat decorator `editor_required` dan `owner_required` di [main/roles.py](main/roles.py): pengunjung tanpa login di-redirect ke `/login/?next=...`, sedangkan pengguna yang tidak berhak mendapat **HTTP 403 Forbidden**. Tombol tambah/edit/hapus juga disembunyikan di template berdasarkan variabel `can_edit` dan `can_manage` yang dikirim oleh context processor [main/context_processors.py](main/context_processors.py).
+
+### Menetapkan peran Editor
+
+Grup `Editor` dibuat otomatis oleh migrasi `0008_create_editor_group`. Untuk menjadikan seseorang editor:
+
+1. Login ke `/admin/` dengan akun superuser.
+2. Buka **Users**, pilih akun yang diinginkan.
+3. Pada bagian **Groups**, pindahkan `Editor` ke daftar *Chosen groups*, lalu **Save**.
+
+Setelah login ulang, akun tersebut akan melihat tombol **Edit** pada Music dan Projects, dan label peran di navbar.
+
+### Fitur star
+
+- Model `Music` punya relasi `starred_by = ManyToManyField(User)` (migrasi `0007_music_starred_by`).
+- View `toggle_music_star` (dan `toggle_star` untuk Projects) hanya menerima `POST` dengan `{% csrf_token %}`, memberi star jika belum dan membatalkannya jika sudah, jadi tiap pengguna maksimal memberi satu star.
+- Jumlah star dan status pengguna (★ Star / ★ Starred) tampil di halaman daftar dan detail. Jumlah star untuk seluruh daftar dihitung dengan dua query saja ([main/stars.py](main/stars.py)).
+
+### Endpoint JSON
+
+`/api/music/` dan `/api/project/` tetap berfungsi (termasuk filter `?title=`), tetapi hanya menyerialisasi field publik. Relasi `starred_by` tidak disertakan agar ID/username pengguna yang memberi star tidak bocor.
+
+### Perubahan lain
+
+- Halaman baru: detail musik (`/music/<id>/`) dan edit musik (`/music/<id>/edit/`).
+- Setelah login, pengguna dikembalikan ke halaman asal (`?next=`, hanya untuk URL di host yang sama).
+- Pesan sukses (tambah/ubah/hapus) kini tampil di semua halaman, tidak hanya di halaman login.
+- Hapus data hanya bisa lewat `POST`.
+- Test otomatis untuk keempat peran, fitur star, dan privasi endpoint JSON di [main/tests.py](main/tests.py).
 
 # Dokumentasi &
 
