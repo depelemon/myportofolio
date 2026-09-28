@@ -50,6 +50,9 @@ class Music(models.Model):
     description = models.TextField()
     released_at = models.DateField()
     audio_path = models.CharField(max_length=255)
+    starred_by = models.ManyToManyField(
+        User, related_name="starred_music", blank=True
+    )
 
     class Meta:
         ordering = ["-released_at"]
