@@ -1,11 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Add Music - {{ name }}{% endblock %}
+{% block title %}{% if music %}Edit {{ music.name }}{% else %}Add Music{% endif %} - {{ name }}{% endblock %}
 {% block content %}
 <section class="form-section">
     <div class="container">
-        <a href="{% url 'main:show_music' %}" class="back-link">&larr; Kembali ke musik</a>
-        <h1>Add New Music</h1>
-        <form method="post" action="{% url 'main:create_music' %}" class="entity-form">
+        {% if music %}
+            <a href="{% url 'main:music_detail' music.id %}" class="back-link">&larr; Kembali ke detail musik</a>
+            <h1>Edit Music</h1>
+        {% else %}
+            <a href="{% url 'main:show_music' %}" class="back-link">&larr; Kembali ke musik</a>
+            <h1>Add New Music</h1>
+        {% endif %}
+        <form method="post"
+              action="{% if music %}{% url 'main:update_music' music.id %}{% else %}{% url 'main:create_music' %}{% endif %}"
+              class="entity-form">
             {% csrf_token %}
             {% for field in form %}
                 <div class="form-group">
@@ -16,8 +23,9 @@
                     {% endfor %}
                 </div>
             {% endfor %}
-            <button type="submit" class="button">Tambah Musik</button>
-            <a href="{% url 'main:show_music' %}" class="button button-secondary">Batal</a>
+            <button type="submit" class="button">{% if music %}Simpan Perubahan{% else %}Tambah Musik{% endif %}</button>
+            <a href="{% if music %}{% url 'main:music_detail' music.id %}{% else %}{% url 'main:show_music' %}{% endif %}"
+               class="button button-secondary">Batal</a>
         </form>
     </div>
 </section>

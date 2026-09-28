@@ -1,10 +1,13 @@
+import json
 from datetime import date
 
+from django.contrib.auth.models import AnonymousUser, Group, User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from main.models import Experience, Music
+from main.models import Experience, Music, Project
+from main.roles import EDITOR_GROUP, can_edit, can_manage, is_editor
 
 
 class MainTest(TestCase):
@@ -98,3 +101,313 @@ class MusicTest(TestCase):
         response = self.client.get(reverse("main:show_music"))
 
         self.assertContains(response, "Belum ada musik yang ditambahkan.")
+
+
+class RoleTestMixin:
+    """Siapkan satu akun untuk tiap peran: biasa, editor, dan pemilik."""
+
+    password = "Rahasia-PBP-2026"
+
+    @classmethod
+    def setUpTestData(cls):
+        # Dibuat sekali per kelas (hashing password cukup lambat); TestCase
+        # mengembalikan state database dan atribut ini untuk tiap tes.
+        cls.user = User.objects.create_user("biasa", password=cls.password)
+        cls.editor = User.objects.create_user("editor", password=cls.password)
+        cls.editor.groups.add(Group.objects.get(name=EDITOR_GROUP))
+        cls.owner = User.objects.create_superuser(
+            "pemilik", password=cls.password
+        )
+        cls.music = Music.objects.create(
+            name="Main Menu",
+            description="Musik menu utama.",
+            released_at=date(2026, 9, 14),
+            audio_path="audio/main_menu.mp3",
+        )
+        cls.project = Project.objects.create(
+            title="Website Portofolio",
+            description="Portofolio pribadi.",
+            released_at=date(2026, 9, 1),
+        )
+
+    def login_as(self, user):
+        self.client.force_login(user)
+
+    def music_payload(self, **overrides):
+        payload = {
+            "name": "Lagu Baru",
+            "description": "Deskripsi lagu.",
+            "released_at": "2026-09-20",
+            "audio_path": "audio/language.mp3",
+        }
+        payload.update(overrides)
+        return payload
+
+
+class RoleHelperTest(RoleTestMixin, TestCase):
+    def test_editor_group_is_created_by_migration(self):
+        self.assertTrue(Group.objects.filter(name=EDITOR_GROUP).exists())
+
+    def test_role_checks(self):
+        anonymous = AnonymousUser()
+        self.assertFalse(can_edit(anonymous))
+        self.assertFalse(can_edit(self.user))
+        self.assertTrue(is_editor(self.editor))
+        self.assertTrue(can_edit(self.editor))
+        self.assertFalse(can_manage(self.editor))
+        self.assertTrue(can_edit(self.owner))
+        self.assertTrue(can_manage(self.owner))
+
+
+class MusicAuthorizationTest(RoleTestMixin, TestCase):
+    def test_anyone_can_read_list_and_detail(self):
+        self.assertEqual(self.client.get(reverse("main:show_music")).status_code, 200)
+        response = self.client.get(reverse("main:music_detail", args=[self.music.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.music.name)
+
+    def test_anonymous_is_redirected_to_login(self):
+        urls = [
+            reverse("main:create_music"),
+            reverse("main:update_music", args=[self.music.id]),
+            reverse("main:delete_music", args=[self.music.id]),
+            reverse("main:toggle_music_star", args=[self.music.id]),
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.post(url)
+                self.assertRedirects(
+                    response,
+                    f"{reverse('main:login')}?next={url}",
+                    fetch_redirect_response=False,
+                )
+        self.assertTrue(Music.objects.filter(pk=self.music.pk).exists())
+
+    def test_regular_user_gets_403_for_changes(self):
+        self.login_as(self.user)
+        self.assertEqual(self.client.get(reverse("main:create_music")).status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                reverse("main:update_music", args=[self.music.id]),
+                self.music_payload(),
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(reverse("main:delete_music", args=[self.music.id])).status_code,
+            403,
+        )
+        self.music.refresh_from_db()
+        self.assertEqual(self.music.name, "Main Menu")
+
+    def test_editor_can_update_but_not_create_or_delete(self):
+        self.login_as(self.editor)
+        response = self.client.post(
+            reverse("main:update_music", args=[self.music.id]),
+            self.music_payload(name="Main Menu (Remaster)"),
+        )
+        self.assertRedirects(response, reverse("main:music_detail", args=[self.music.id]))
+        self.music.refresh_from_db()
+        self.assertEqual(self.music.name, "Main Menu (Remaster)")
+
+        self.assertEqual(
+            self.client.post(reverse("main:create_music"), self.music_payload()).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(reverse("main:delete_music", args=[self.music.id])).status_code,
+            403,
+        )
+        self.assertEqual(Music.objects.count(), 1)
+
+    def test_owner_can_create_update_and_delete(self):
+        self.login_as(self.owner)
+        self.client.post(reverse("main:create_music"), self.music_payload())
+        self.assertTrue(Music.objects.filter(name="Lagu Baru").exists())
+
+        self.client.post(
+            reverse("main:update_music", args=[self.music.id]),
+            self.music_payload(name="Diubah Pemilik"),
+        )
+        self.music.refresh_from_db()
+        self.assertEqual(self.music.name, "Diubah Pemilik")
+
+        self.client.post(reverse("main:delete_music", args=[self.music.id]))
+        self.assertFalse(Music.objects.filter(pk=self.music.pk).exists())
+
+    def test_delete_requires_post(self):
+        self.login_as(self.owner)
+        response = self.client.get(reverse("main:delete_music", args=[self.music.id]))
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(Music.objects.filter(pk=self.music.pk).exists())
+
+    def test_controls_are_hidden_by_role(self):
+        edit_url = reverse("main:update_music", args=[self.music.id])
+        create_url = reverse("main:create_music")
+        delete_url = reverse("main:delete_music", args=[self.music.id])
+
+        cases = [
+            (None, False, False),
+            (self.user, False, False),
+            (self.editor, True, False),
+            (self.owner, True, True),
+        ]
+        for account, sees_edit, sees_manage in cases:
+            with self.subTest(account=account):
+                self.client.logout()
+                if account:
+                    self.login_as(account)
+                content = self.client.get(reverse("main:show_music")).content.decode()
+                self.assertEqual(edit_url in content, sees_edit)
+                self.assertEqual(create_url in content, sees_manage)
+                self.assertEqual(delete_url in content, sees_manage)
+
+
+class MusicStarTest(RoleTestMixin, TestCase):
+    def toggle(self, **data):
+        return self.client.post(
+            reverse("main:toggle_music_star", args=[self.music.id]), data
+        )
+
+    def test_toggle_star_adds_then_removes_one_star(self):
+        self.login_as(self.user)
+        self.toggle()
+        self.assertTrue(self.music.starred_by.filter(pk=self.user.pk).exists())
+        self.assertEqual(self.music.starred_by.count(), 1)
+
+        self.toggle()
+        self.assertEqual(self.music.starred_by.count(), 0)
+
+    def test_star_count_and_status_are_shown(self):
+        self.music.starred_by.add(self.editor, self.owner)
+        self.login_as(self.user)
+        response = self.client.get(reverse("main:music_detail", args=[self.music.id]))
+        self.assertContains(response, '<span class="star-count">2</span>', html=True)
+        self.assertContains(response, 'aria-pressed="false"')
+
+        self.toggle()
+        response = self.client.get(reverse("main:music_detail", args=[self.music.id]))
+        self.assertContains(response, '<span class="star-count">3</span>', html=True)
+        self.assertContains(response, 'aria-pressed="true"')
+
+    def test_toggle_star_requires_post(self):
+        self.login_as(self.user)
+        response = self.client.get(reverse("main:toggle_music_star", args=[self.music.id]))
+        self.assertEqual(response.status_code, 405)
+
+    def test_toggle_star_redirects_to_safe_next_only(self):
+        self.login_as(self.user)
+        response = self.toggle(next=reverse("main:show_music"))
+        self.assertRedirects(response, reverse("main:show_music"))
+
+        response = self.toggle(next="https://evil.example.com/")
+        self.assertRedirects(
+            response, reverse("main:music_detail", args=[self.music.id])
+        )
+
+    def test_list_uses_constant_number_of_queries(self):
+        for i in range(5):
+            music = Music.objects.create(
+                name=f"Lagu {i}",
+                description="-",
+                released_at=date(2026, 1, i + 1),
+                audio_path="audio/language.mp3",
+            )
+            music.starred_by.add(self.user)
+        self.login_as(self.user)
+        # sesi, user, grup Editor (context processor), daftar musik,
+        # jumlah star, dan status star pengguna.
+        with self.assertNumQueries(6):
+            self.client.get(reverse("main:show_music"))
+
+
+class ProjectAuthorizationTest(RoleTestMixin, TestCase):
+    def project_payload(self, **overrides):
+        payload = {
+            "title": "Proyek Baru",
+            "description": "Deskripsi.",
+            "released_at": "2026-09-20",
+            "thumbnail": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_anonymous_cannot_update_or_delete(self):
+        url = reverse("main:update_project", args=[self.project.id])
+        response = self.client.post(url, self.project_payload())
+        self.assertRedirects(
+            response, f"{reverse('main:login')}?next={url}", fetch_redirect_response=False
+        )
+        self.client.post(reverse("main:delete_project", args=[self.project.id]))
+        self.assertTrue(Project.objects.filter(pk=self.project.pk).exists())
+
+    def test_regular_user_gets_403(self):
+        self.login_as(self.user)
+        response = self.client.get(reverse("main:update_project", args=[self.project.id]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_editor_can_update_but_not_delete(self):
+        self.login_as(self.editor)
+        self.client.post(
+            reverse("main:update_project", args=[self.project.id]),
+            self.project_payload(title="Diubah Editor"),
+        )
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.title, "Diubah Editor")
+        self.assertEqual(
+            self.client.post(reverse("main:delete_project", args=[self.project.id])).status_code,
+            403,
+        )
+
+    def test_owner_can_delete(self):
+        self.login_as(self.owner)
+        self.client.post(reverse("main:delete_project", args=[self.project.id]))
+        self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
+
+    def test_regular_user_can_star_project(self):
+        self.login_as(self.user)
+        self.client.post(reverse("main:toggle_star", args=[self.project.id]))
+        self.assertEqual(self.project.starred_by.count(), 1)
+
+
+class JsonEndpointTest(RoleTestMixin, TestCase):
+    def test_json_does_not_expose_starring_users(self):
+        self.music.starred_by.add(self.user)
+        self.project.starred_by.add(self.user)
+
+        for url_name in ("main:get_music_json", "main:get_projects_json"):
+            with self.subTest(url_name=url_name):
+                response = self.client.get(reverse(url_name))
+                self.assertEqual(response.status_code, 200)
+                data = json.loads(response.content)
+                self.assertEqual(len(data), 1)
+                self.assertNotIn("starred_by", data[0]["fields"])
+                self.assertNotContains(response, self.user.username)
+
+    def test_json_title_filter_still_works(self):
+        response = self.client.get(reverse("main:get_music_json"), {"title": "menu"})
+        self.assertEqual(json.loads(response.content)[0]["fields"]["name"], "Main Menu")
+        response = self.client.get(reverse("main:get_music_json"), {"title": "xyz"})
+        self.assertEqual(json.loads(response.content), [])
+
+
+class LoginRedirectTest(RoleTestMixin, TestCase):
+    def test_login_returns_to_next_and_sets_cookie(self):
+        next_url = reverse("main:music_detail", args=[self.music.id])
+        response = self.client.post(
+            reverse("main:login"),
+            {"username": "biasa", "password": self.password, "next": next_url},
+        )
+        self.assertRedirects(response, next_url)
+        self.assertIn("last_login", response.cookies)
+
+    def test_login_ignores_external_next(self):
+        response = self.client.post(
+            reverse("main:login"),
+            {
+                "username": "biasa",
+                "password": self.password,
+                "next": "https://evil.example.com/",
+            },
+        )
+        self.assertRedirects(response, reverse("main:show_main"))

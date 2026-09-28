@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ music.name }} - {{ name }}{% endblock %}
+{% block content %}
+<section class="project-detail">
+    <div class="container">
+        <a href="{% url 'main:show_music' %}" class="back-link">&larr; Kembali ke musik</a>
+        <p class="item-date">{{ music.released_at|date:"d M Y" }}</p>
+        <h1>{{ music.name }}</h1>
+        <p class="project-detail__description">{{ music.description|linebreaksbr }}</p>
+        <audio class="music-player music-player--detail" controls preload="none" src="{% static music.audio_path %}">
+            Browser kamu tidak mendukung pemutar audio.
+        </audio>
+        <div class="project-detail__actions">
+            {% include "components/music_star.html" with music=music %}
+            {% if can_edit %}
+                <a href="{% url 'main:update_music' music.id %}" class="button button-secondary">Edit Musik</a>
+            {% endif %}
+            {% if can_manage %}
+                {% include "components/music_delete_modal.html" with music=music %}
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

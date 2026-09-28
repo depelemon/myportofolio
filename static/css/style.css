@@ -318,6 +318,10 @@ h1, .brand {
 }
 
 .item-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
     margin-top: 1rem;
 }
 
@@ -679,4 +683,84 @@ h1, .brand {
         width: 100%;
         text-align: center;
     }
+}
+
+.star-form {
+    display: inline;
+}
+
+.button-star {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--ink);
+}
+
+.button-star.is-starred {
+    background: var(--accent);
+}
+
+.star-count {
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    font-size: 0.8rem;
+}
+.nav-user {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.role-badge {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.role-badge--owner {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.item-card__heading-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.item-card__heading-link:hover {
+    color: var(--accent-dark);
+    text-decoration: underline;
+}
+
+.music-player--detail {
+    max-width: 640px;
+}
+
+.flash-messages {
+    display: grid;
+    gap: 0.5rem;
+    padding-top: 1.25rem;
+}
+
+.flash-message {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ink);
+    border-radius: var(--radius);
+    background: #fff;
+}
+
+.flash-message--success {
+    border-left-color: #2f7d4f;
+}
+
+.flash-message--error {
+    border-left-color: var(--accent-dark);
 }

@@ -11,8 +11,13 @@
         {% endif %}
         <p class="project-detail__description">{{ project.description|linebreaksbr }}</p>
         <div class="project-detail__actions">
-            <a href="{% url 'main:update_project' project.id %}" class="button">Edit Proyek</a>
-            {% include "components/project_delete_modal.html" with project=project %}
+            {% include "components/project_star.html" with project=project %}
+            {% if can_edit %}
+                <a href="{% url 'main:update_project' project.id %}" class="button button-secondary">Edit Proyek</a>
+            {% endif %}
+            {% if can_manage %}
+                {% include "components/project_delete_modal.html" with project=project %}
+            {% endif %}
         </div>
     </div>
 </section>

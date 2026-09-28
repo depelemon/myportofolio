@@ -7,10 +7,13 @@
         <a href="{% url 'main:show_main' %}" class="back-link">&larr; Kembali ke profil</a>
         <div class="page-header">
             <h1 class="section-title">Music</h1>
-            <a href="{% url 'main:create_music' %}" class="button add-button">
-                <span aria-hidden="true">+</span>
-                Tambah Musik
-            </a>
+            {% if can_manage %}
+                <a href="{% url 'main:create_music' %}"
+                class="button project-add-button">
+                    <span aria-hidden="true">+</span>
+                    Tambah Musik
+                </a>
+            {% endif %}
         </div>
         <form method="get"
               action="{% url 'main:show_music' %}"
@@ -27,13 +30,19 @@
             {% for music in music_list %}
             <li class="item-card">
                 <p class="item-date">{{ music.released_at|date:"d M Y" }}</p>
-                <h3>{{ music.name }}</h3>
+                <h3><a href="{% url 'main:music_detail' music.id %}" class="item-card__heading-link">{{ music.name }}</a></h3>
                 <p class="item-description">{{ music.description|linebreaksbr }}</p>
                 <audio class="music-player" controls preload="none" src="{% static music.audio_path %}">
                     Browser kamu tidak mendukung pemutar audio.
                 </audio>
                 <div class="item-card-actions">
-                    {% include "components/music_delete_modal.html" with music=music %}
+                    {% include "components/music_star.html" with music=music %}
+                    {% if can_edit %}
+                        <a href="{% url 'main:update_music' music.id %}" class="button button-secondary">Edit</a>
+                    {% endif %}
+                    {% if can_manage %}
+                        {% include "components/music_delete_modal.html" with music=music %}
+                    {% endif %}
                 </div>
             </li>
             {% empty %}

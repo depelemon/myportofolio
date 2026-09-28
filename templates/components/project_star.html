@@ -1,0 +1,26 @@
+{% comment %}
+    Butuh `project.star_count` dan `project.is_starred` (lihat main.stars.attach_star_info).
+    Pengunjung tanpa login hanya melihat jumlah star dan diarahkan ke halaman login.
+{% endcomment %}
+{% if user.is_authenticated %}
+<form method="post" action="{% url 'main:toggle_star' project.id %}" class="star-form">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit"
+            class="button button-star{% if project.is_starred %} is-starred{% endif %}"
+            aria-pressed="{{ project.is_starred|yesno:'true,false' }}"
+            title="{% if project.is_starred %}Batalkan star{% else %}Beri star{% endif %}">
+        <span aria-hidden="true">★</span>
+        {% if project.is_starred %}Starred{% else %}Star{% endif %}
+        <span class="star-count">{{ project.star_count }}</span>
+    </button>
+</form>
+{% else %}
+<a href="{% url 'main:login' %}?next={{ request.get_full_path|urlencode }}"
+   class="button button-star"
+   title="Login untuk memberi star">
+    <span aria-hidden="true">★</span>
+    Login untuk star
+    <span class="star-count">{{ project.star_count }}</span>
+</a>
+{% endif %}

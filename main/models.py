@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.contrib.auth.models import User 
 
 class Experience(models.Model):
     EXPERIENCE_CHOICES = [
@@ -39,12 +40,19 @@ class Project(models.Model):
     def __str__(self):
         return self.title
 
+    starred_by = models.ManyToManyField(
+        User, related_name="starred_projects", blank=True
+    )
+
 class Music(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     description = models.TextField()
     released_at = models.DateField()
     audio_path = models.CharField(max_length=255)
+    starred_by = models.ManyToManyField(
+        User, related_name="starred_music", blank=True
+    )
 
     class Meta:
         ordering = ["-released_at"]

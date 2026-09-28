@@ -1,0 +1,26 @@
+{% comment %}
+    Butuh `music.star_count` dan `music.is_starred` (lihat main.stars.attach_star_info).
+    Pengunjung tanpa login hanya melihat jumlah star dan diarahkan ke halaman login.
+{% endcomment %}
+{% if user.is_authenticated %}
+<form method="post" action="{% url 'main:toggle_music_star' music.id %}" class="star-form">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit"
+            class="button button-star{% if music.is_starred %} is-starred{% endif %}"
+            aria-pressed="{{ music.is_starred|yesno:'true,false' }}"
+            title="{% if music.is_starred %}Batalkan star{% else %}Beri star{% endif %}">
+        <span aria-hidden="true">★</span>
+        {% if music.is_starred %}Starred{% else %}Star{% endif %}
+        <span class="star-count">{{ music.star_count }}</span>
+    </button>
+</form>
+{% else %}
+<a href="{% url 'main:login' %}?next={{ request.get_full_path|urlencode }}"
+   class="button button-star"
+   title="Login untuk memberi star">
+    <span aria-hidden="true">★</span>
+    Login untuk star
+    <span class="star-count">{{ music.star_count }}</span>
+</a>
+{% endif %}
