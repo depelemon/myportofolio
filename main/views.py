@@ -1,19 +1,38 @@
-import json
 import datetime
 
 from django.contrib import messages
+from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core import serializers
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.contrib.auth import login, logout
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.contrib.auth.decorators import login_required  
-from django.core.exceptions import PermissionDenied        
-
-from django.conf import settings
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 from main.forms import MusicForm, ProjectForm
 from main.models import Experience, Music, Project
+from main.roles import editor_required, owner_required
+from main.stars import attach_star_info, toggle_user_star
+
+def safe_next_url(request):
+    """Ambil parameter ``next`` hanya jika mengarah ke host ini sendiri."""
+    next_url = request.POST.get("next") or request.GET.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return next_url
+    return None
+
+def redirect_back(request, fallback, *args, **kwargs):
+    """Redirect ke ``next`` (jika aman) atau ke URL ``fallback``."""
+    next_url = safe_next_url(request)
+    if next_url:
+        return redirect(next_url)
+    return redirect(fallback, *args, **kwargs)
 
 def register(request):
     form = UserCreationForm(request.POST or None)
@@ -24,7 +43,7 @@ def register(request):
         return redirect("main:login")
 
     context = {
-        "name": "Burhan",
+        "name": "David Liman",
         "form": form,
     }
     return render(request, "register.html", context)
@@ -41,13 +60,15 @@ def login_user(request):
     if request.method == "POST" and form.is_valid():
         user = form.get_user()
         login(request, user)
-        response = redirect("main:show_main")
+        # Kembali ke halaman yang tadinya meminta login (?next=), jika ada.
+        response = redirect_back(request, "main:show_main")
         response.set_cookie('last_login', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         return response
 
     context = {
         "name": "David Liman",
         "form": form,
+        "next": safe_next_url(request) or "",
     }
     return render(request, "login.html", context)
 
@@ -171,6 +192,7 @@ def show_music(request):
         json_response.content.decode("utf-8"),
     )
     musics = [music.object for music in musics]
+    attach_star_info(musics, Music, request.user)
     title_query = request.GET.get("title", "").strip()
 
     context = {
@@ -180,21 +202,18 @@ def show_music(request):
     }
     return render(request, "music.html", context)
 
-def delete_music(request, music_id):
+def music_detail(request, music_id):
     music = get_object_or_404(Music, pk=music_id)
+    attach_star_info([music], Music, request.user)
 
-    if request.method == "POST":
-        music.delete()
-        messages.success(request, "Musik berhasil dihapus!")
-        return redirect("main:show_music")
+    context = {
+        "name": "David Liman",
+        "music": music,
+    }
+    return render(request, "music_detail.html", context)
 
-    return redirect("main:show_music")
-
-@login_required(login_url="/login/")
+@owner_required
 def create_music(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
-    
     form = MusicForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
@@ -207,6 +226,38 @@ def create_music(request):
         "form": form,
     }
     return render(request, "music_form.html", context)
+
+@editor_required
+def update_music(request, music_id):
+    music = get_object_or_404(Music, pk=music_id)
+    form = MusicForm(request.POST or None, instance=music)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Musik berhasil diperbarui!")
+        return redirect("main:music_detail", music_id=music.id)
+
+    context = {
+        "name": "David Liman",
+        "form": form,
+        "music": music,
+    }
+    return render(request, "music_form.html", context)
+
+@owner_required
+@require_POST
+def delete_music(request, music_id):
+    music = get_object_or_404(Music, pk=music_id)
+    music.delete()
+    messages.success(request, "Musik berhasil dihapus!")
+    return redirect("main:show_music")
+
+@login_required
+@require_POST
+def toggle_music_star(request, music_id):
+    music = get_object_or_404(Music, pk=music_id)
+    toggle_user_star(music, request.user)
+    return redirect_back(request, "main:music_detail", music_id=music.id)
 
 # Tanpa cek is_superuser: semua akun yang sudah login boleh memberi star
 @login_required(login_url="/login/")
