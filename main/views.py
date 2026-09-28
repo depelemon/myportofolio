@@ -5,7 +5,6 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core import serializers
-from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -124,6 +123,7 @@ def show_projects(request):
 
 def project_detail(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
+    attach_star_info([project], Project, request.user)
 
     context = {
         "name": "David Liman",
@@ -131,11 +131,8 @@ def project_detail(request, project_id):
     }
     return render(request, "project_detail.html", context)
 
-@login_required(login_url="/login/")
+@owner_required
 def create_project(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
-
     form = ProjectForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
@@ -149,6 +146,7 @@ def create_project(request):
     }
     return render(request, "projects_form.html", context)
 
+@editor_required
 def update_project(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
     form = ProjectForm(request.POST or None, instance=project)
@@ -165,13 +163,12 @@ def update_project(request, project_id):
     }
     return render(request, "projects_form.html", context)
 
+@owner_required
+@require_POST
 def delete_project(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
-
-    if request.method == "POST":
-        project.delete()
-        messages.success(request, "Proyek berhasil dihapus!")
-
+    project.delete()
+    messages.success(request, "Proyek berhasil dihapus!")
     return redirect("main:show_projects")
 
 def get_music_json(request):
@@ -259,17 +256,10 @@ def toggle_music_star(request, music_id):
     toggle_user_star(music, request.user)
     return redirect_back(request, "main:music_detail", music_id=music.id)
 
-# Tanpa cek is_superuser: semua akun yang sudah login boleh memberi star
-@login_required(login_url="/login/")
+# Tanpa cek peran: semua akun yang sudah login boleh memberi star
+@login_required
+@require_POST
 def toggle_star(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
-
-    if request.method == "POST":
-        # Kalau akun ini sudah pernah memberi star, batalkan star-nya.
-        # Kalau belum, tambahkan star.
-        if request.user in project.starred_by.all():
-            project.starred_by.remove(request.user)
-        else:
-            project.starred_by.add(request.user)
-
-    return redirect("main:show_projects")
+    toggle_user_star(project, request.user)
+    return redirect_back(request, "main:project_detail", project_id=project.id)
