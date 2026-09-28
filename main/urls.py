@@ -7,7 +7,10 @@ from main.views import (
     delete_project,
     get_music_json,
     get_projects_json,
+    login_user,
+    logout_user,
     project_detail,
+    register,
     show_experiences,
     show_main,
     show_music,
@@ -30,4 +33,7 @@ urlpatterns = [
     path("music/<uuid:music_id>/delete/", delete_music, name="delete_music"),
     path("api/music/", get_music_json, name="get_music_json"),
     path("api/project/", get_projects_json, name="get_projects_json"),
+    path("register/", register, name="register"),
+    path("login/", login_user, name="login"),
+    path("logout/", logout_user, name="logout"),
 ]
