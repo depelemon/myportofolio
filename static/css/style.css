@@ -742,3 +742,25 @@ h1, .brand {
 .music-player--detail {
     max-width: 640px;
 }
+
+.flash-messages {
+    display: grid;
+    gap: 0.5rem;
+    padding-top: 1.25rem;
+}
+
+.flash-message {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ink);
+    border-radius: var(--radius);
+    background: #fff;
+}
+
+.flash-message--success {
+    border-left-color: #2f7d4f;
+}
+
+.flash-message--error {
+    border-left-color: var(--accent-dark);
+}
