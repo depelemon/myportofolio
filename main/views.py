@@ -15,6 +15,12 @@ from main.models import Experience, Music, Project
 from main.roles import editor_required, owner_required
 from main.stars import attach_star_info, toggle_user_star
 
+# Field yang boleh dipublikasikan lewat endpoint JSON. Relasi `starred_by`
+# sengaja tidak disertakan agar identitas pengguna yang memberi star
+# (ID/username) tidak bocor ke publik.
+PUBLIC_PROJECT_FIELDS = ("title", "description", "released_at", "thumbnail")
+PUBLIC_MUSIC_FIELDS = ("name", "description", "released_at", "audio_path")
+
 def safe_next_url(request):
     """Ambil parameter ``next`` hanya jika mengarah ke host ini sendiri."""
     next_url = request.POST.get("next") or request.GET.get("next")
@@ -100,7 +106,7 @@ def get_projects_json(request):
         projects = projects.filter(title__icontains=title_query)
 
     projects_json = serializers.serialize(
-        "json", projects, use_natural_foreign_keys=True  # Tambahkan argumen ini
+        "json", projects, fields=PUBLIC_PROJECT_FIELDS
     )
     return HttpResponse(projects_json, content_type="application/json")
 
@@ -178,7 +184,9 @@ def get_music_json(request):
     if title_query:
         musics = musics.filter(name__icontains=title_query)
 
-    musics_json = serializers.serialize("json", musics)
+    musics_json = serializers.serialize(
+        "json", musics, fields=PUBLIC_MUSIC_FIELDS
+    )
     return HttpResponse(musics_json, content_type="application/json")
 
 def show_music(request):
