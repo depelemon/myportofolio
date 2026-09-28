@@ -72,12 +72,12 @@ Bagian portofolio dari Tugas 3 (**Music**) sekarang mengikuti hak akses pengguna
 
 ### Hak akses
 
-| Peran | Cara mendapatkan | Baca daftar & detail | Star / unstar | Ubah data | Buat & hapus data |
-| --- | --- | :---: | :---: | :---: | :---: |
-| Pengunjung | tidak login | ✅ | ➡️ diarahkan ke login | ➡️ diarahkan ke login | ➡️ diarahkan ke login |
-| Pengguna biasa | registrasi di `/register/` | ✅ | ✅ | ❌ 403 | ❌ 403 |
-| Editor | anggota grup `Editor` | ✅ | ✅ | ✅ | ❌ 403 |
-| Pemilik portofolio | superuser | ✅ | ✅ | ✅ | ✅ |
+| Peran              | Cara mendapatkan            | Baca daftar & detail |      Star / unstar      |        Ubah data        |    Buat & hapus data    |
+| ------------------ | --------------------------- | :------------------: | :---------------------: | :---------------------: | :---------------------: |
+| Pengunjung         | tidak login                 |          ✅          | ➡️ diarahkan ke login | ➡️ diarahkan ke login | ➡️ diarahkan ke login |
+| Pengguna biasa     | registrasi di`/register/` |          ✅          |           ✅           |         ❌ 403         |         ❌ 403         |
+| Editor             | anggota grup`Editor`      |          ✅          |           ✅           |           ✅           |         ❌ 403         |
+| Pemilik portofolio | superuser                   |          ✅          |           ✅           |           ✅           |           ✅           |
 
 Pemeriksaan dilakukan di sisi server lewat decorator `editor_required` dan `owner_required` di [main/roles.py](main/roles.py): pengunjung tanpa login di-redirect ke `/login/?next=...`, sedangkan pengguna yang tidak berhak mendapat **HTTP 403 Forbidden**. Tombol tambah/edit/hapus juga disembunyikan di template berdasarkan variabel `can_edit` dan `can_manage` yang dikirim oleh context processor [main/context_processors.py](main/context_processors.py).
 
@@ -109,28 +109,27 @@ Setelah login ulang, akun tersebut akan melihat tombol **Edit** pada Music dan P
 - Hapus data hanya bisa lewat `POST`.
 - Test otomatis untuk keempat peran, fitur star, dan privasi endpoint JSON di [main/tests.py](main/tests.py).
 
-# Dokumentasi &
+# Dokumentasi 
 
 Untuk branching, saya memutuskan menggunakan branch bertahap dari branch dev ke branch main, dengan alasan agar mempermudah proses review dan mengurangi risiko error yang mungkin terjadi.
 
 Untuk setiap fitur baru yang signifikan, akan ada branch baru yang dibuat dari branch dev (contohnya feat/<feature-name></feature>). Dengan melakukan branching bertahap, setiap perubahan dapat diuji secara terpisah sebelum digabungkan ke branch utama, sehingga meminimalkan potensi konflik dan memastikan stabilitas kode.
 
-# AI Disclosure (last upd: Tugas Individu 3)
+# AI Disclosure (last upd: Tugas Individu 4)
 
 Saya menggunakan Claude Code dan Copilot (BYOK dengan API key dari DeepSeek), serta Claude via Web Browser untuk membantu proses pembelajaran di Tugas Individu 1 ini. Claude via Web Browser saya gunakan untuk menanyakan konsep-konsep Web Development, sedangkan Claude Code dan Copilot untuk agentic atau untuk pertanyaan yang membutuhkan konteks kode.
 
 Prompt yang saya gunakan:
 
 ```
-1. make sure every html extends index.html
-2. make a ProjectForm, take context from the Project model in models.py
-3. add create, update, delete, in views.py for Projects, use json and serializers, take music's endpoint for example.
-4. update css, since some aspects are similar to music's form, might want to rename the css' class/id to make it more general
-5. complete the projects_form.html and projects.html
-6. add api endpoint in urls.py for api/project
+1. baca tugas 4 pdf, dan lakukan tasknya secara bertahap (commit setiap perubahan
+   bermakna, di branch dev, nanti kumerge ke main kalau sudah oke)
+2. undo your commits so i can see what changes there are
+3. jelaskan kenapa bikin file baru seperti context processors, roles, dan stars?
 ```
 
-Selengkapnya bisa dilihat di log Claude Code dalam bentuk JSONL [di sini](https://drive.google.com/file/d/1EbFrMbnWK_ZQVrMlb2Ing-Z9RlkdiWsQ/view?usp=sharing)
+* AI menambahkan hal di luar kriteria soal: file `roles.py`, `stars.py`, `context_processors.py`, halaman detail musik, dan proteksi pada Projects. Saya meminta penjelasannya dulu sebelum memutuskan untuk keep apa yang diubah AI. Alasannya masuk akal: tanpa decorator, cek peran harus ditulis ulang di 6 view. Terbukti pula view update/delete Projects dari tutorial sebelumnya bisa diakses tanpa login. Namun, strukturnya jadi berbeda dari pola tutorial, sehingga saya perlu memahami tiap file sebelum commit.
+* AI menemukan bahwa `/api/project/` membocorkan username pengguna yang memberi star (`use_natural_foreign_keys`). Saya memverifikasinya lewat output JSON sebelum dan sesudah perbaikan.
 
 # Pertanyaan Reflektif
 
@@ -225,3 +224,7 @@ Alur pada endpoint `api/project/` (fungsi `get_projects_json` di `views.py`):
 Mengapa perlu serialization? Karena HTTP hanya membawa teks (byte), sedangkan objek model seperti `Project` hanyalah struktur di memori Python yang tidak bisa langsung dikirim, dan client seperti JavaScript atau aplikasi mobile juga tidak mengenal objek Python. Serialization mengubah objek menjadi format standar (JSON) yang bisa dikirim dan dipahami client mana pun. Serializer Django juga menangani tipe data khusus seperti `UUIDField` (`id`) dan `DateField` (`released_at`) yang bukan tipe bawaan JSON dengan mengubahnya menjadi string yang valid, dan hasilnya bisa dideserialisasi kembali menjadi objek model.
 
 Endpoint JSON hanya mengirim data tanpa tampilan, sehingga bisa dipakai ulang oleh banyak client, tidak hanya browser. Untuk halaman HTML saja sebenarnya `Project.objects.all()` langsung ke template sudah cukup; di proyek ini `show_projects` sengaja memutar lewat serialize lalu deserialize untuk mengikuti pola endpoint music dan menunjukkan alur serialization.
+
+## Tugas 4
+
+Tidak ada~
