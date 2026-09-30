@@ -1,4 +1,6 @@
+from django.core.exceptions import ValidationError
 from django.forms import ModelForm, TextInput, Textarea, DateInput, URLInput
+from django.utils.html import strip_tags
 
 from main.models import Music, Project
 
@@ -88,3 +90,17 @@ class ProjectForm(ModelForm):
                 }
             ),
         }
+
+    # Lapisan pertahanan kedua terhadap XSS; pertahanan utama tetap escaping
+    # saat data ditampilkan.
+    def clean_title(self):
+        title = strip_tags(self.cleaned_data["title"]).strip()
+        if not title:
+            raise ValidationError("Judul proyek tidak boleh hanya berisi tag HTML.")
+        return title
+
+    def clean_description(self):
+        description = strip_tags(self.cleaned_data["description"]).strip()
+        if not description:
+            raise ValidationError("Deskripsi proyek tidak boleh hanya berisi tag HTML.")
+        return description

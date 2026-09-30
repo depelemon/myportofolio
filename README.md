@@ -109,7 +109,7 @@ Setelah login ulang, akun tersebut akan melihat tombol **Edit** pada Music dan P
 - Hapus data hanya bisa lewat `POST`.
 - Test otomatis untuk keempat peran, fitur star, dan privasi endpoint JSON di [main/tests.py](main/tests.py).
 
-# Dokumentasi 
+# Dokumentasi
 
 Untuk branching, saya memutuskan menggunakan branch bertahap dari branch dev ke branch main, dengan alasan agar mempermudah proses review dan mengurangi risiko error yang mungkin terjadi.
 
