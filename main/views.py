@@ -5,14 +5,14 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core import serializers
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from main.forms import MusicForm, ProjectForm
 from main.models import Experience, Music, Project
-from main.roles import editor_required, owner_required
+from main.roles import can_manage, editor_required, owner_required
 from main.stars import attach_star_info, toggle_user_star
 
 # Field yang boleh dipublikasikan lewat endpoint JSON. Relasi `starred_by`
@@ -105,25 +105,33 @@ def get_projects_json(request):
     if title_query:
         projects = projects.filter(title__icontains=title_query)
 
-    projects_json = serializers.serialize(
-        "json", projects, fields=PUBLIC_PROJECT_FIELDS
-    )
-    return HttpResponse(projects_json, content_type="application/json")
+    projects = list(projects)
+    attach_star_info(projects, Project, request.user)
+
+    # JSON dirakit manual agar bisa menyertakan status star pengguna yang
+    # sedang login. Hanya jumlah star yang dikirim; username pemberi star
+    # sengaja tidak disertakan (lihat PUBLIC_PROJECT_FIELDS).
+    data = [
+        {
+            "pk": str(project.id),
+            "fields": {
+                **{field: getattr(project, field) for field in PUBLIC_PROJECT_FIELDS},
+                "star_count": project.star_count,
+                "is_starred": project.is_starred,
+            },
+        }
+        for project in projects
+    ]
+    return JsonResponse(data, safe=False)
 
 def show_projects(request):
-    json_response = get_projects_json(request)
-
-    projects = serializers.deserialize(
-        "json",
-        json_response.content.decode("utf-8"),
-    )
-    projects = [project.object for project in projects]
+    # Daftar proyek diambil browser lewat AJAX dari get_projects_json.
     title_query = request.GET.get("title", "").strip()
 
     context = {
         "name": "David Liman",
-        "project_list": projects,
         "title_query": title_query,
+        "form": ProjectForm(),
     }
     return render(request, "projects.html", context)
 
@@ -151,6 +159,27 @@ def create_project(request):
         "form": form,
     }
     return render(request, "projects_form.html", context)
+
+# Tanpa @owner_required: dekorator itu me-redirect pengunjung ke halaman login,
+# sehingga fetch menerima HTML login (status 200) alih-alih JSON. Karena
+# AnonymousUser tidak lolos can_manage, satu pemeriksaan ini sudah cukup.
+@require_POST
+def create_project_ajax(request):
+    if not can_manage(request.user):
+        return JsonResponse(
+            {"message": "Hanya pemilik portofolio yang dapat menambahkan proyek."},
+            status=403,
+        )
+
+    form = ProjectForm(request.POST)
+    if form.is_valid():
+        project = form.save()
+        return JsonResponse(
+            {"message": "Proyek berhasil ditambahkan.", "pk": str(project.id)},
+            status=201,
+        )
+
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
 
 @editor_required
 def update_project(request, project_id):

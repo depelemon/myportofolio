@@ -411,3 +411,89 @@ class LoginRedirectTest(RoleTestMixin, TestCase):
             },
         )
         self.assertRedirects(response, reverse("main:show_main"))
+
+class ProjectAjaxTest(RoleTestMixin, TestCase):
+    def payload(self, **overrides):
+        payload = {
+            "title": "Proyek AJAX",
+            "description": "Deskripsi.",
+            "released_at": "2026-09-20",
+            "thumbnail": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_projects_page_has_no_server_rendered_list(self):
+        response = self.client.get(reverse("main:show_projects"))
+        self.assertNotContains(response, self.project.title)
+        self.assertContains(response, 'id="grid"')
+
+    def test_json_includes_star_info_for_current_user_only(self):
+        self.project.starred_by.add(self.user)
+        url = reverse("main:get_projects_json")
+
+        fields = json.loads(self.client.get(url).content)[0]["fields"]
+        self.assertEqual(fields["star_count"], 1)
+        self.assertFalse(fields["is_starred"])
+
+        self.login_as(self.user)
+        fields = json.loads(self.client.get(url).content)[0]["fields"]
+        self.assertTrue(fields["is_starred"])
+
+    def test_owner_can_create_via_ajax(self):
+        self.login_as(self.owner)
+        response = self.client.post(reverse("main:create_project_ajax"), self.payload())
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Project.objects.filter(title="Proyek AJAX").exists())
+
+    def test_anonymous_editor_and_regular_user_get_json_403(self):
+        url = reverse("main:create_project_ajax")
+        for user in (None, self.user, self.editor):
+            with self.subTest(user=user):
+                self.client.logout()
+                if user:
+                    self.login_as(user)
+                response = self.client.post(url, self.payload())
+                self.assertEqual(response.status_code, 403)
+                self.assertIn("message", response.json())
+        self.assertFalse(Project.objects.filter(title="Proyek AJAX").exists())
+
+    def test_create_ajax_requires_post(self):
+        self.login_as(self.owner)
+        response = self.client.get(reverse("main:create_project_ajax"))
+        self.assertEqual(response.status_code, 405)
+
+    def test_invalid_data_returns_400_with_errors(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            reverse("main:create_project_ajax"), self.payload(title="   ")
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("title", response.json()["errors"])
+
+    def test_html_is_stripped_and_html_only_title_rejected(self):
+        self.login_as(self.owner)
+        url = reverse("main:create_project_ajax")
+        self.client.post(url, self.payload(title="Halo <b>dunia</b>"))
+        self.assertTrue(Project.objects.filter(title="Halo dunia").exists())
+
+        response = self.client.post(
+            url, self.payload(title="<img src=x onerror=alert(1)>")
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_javascript_url_thumbnail_is_rejected(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            reverse("main:create_project_ajax"),
+            self.payload(thumbnail="javascript:alert(1)"),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_add_modal_only_for_owner(self):
+        url = reverse("main:show_projects")
+        self.assertNotContains(self.client.get(url), 'id="add-project-modal"')
+        self.login_as(self.editor)
+        self.assertNotContains(self.client.get(url), 'id="add-project-modal"')
+        self.login_as(self.owner)
+        self.assertContains(self.client.get(url), 'id="add-project-modal"')

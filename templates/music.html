@@ -15,10 +15,12 @@
                 </a>
             {% endif %}
         </div>
-        <form method="get"
+        <form id="music-search-form"
+              method="get"
               action="{% url 'main:show_music' %}"
               class="search-form">
             <input type="search"
+                   id="music-search-input"
                    name="title"
                    value="{{ title_query }}"
                    placeholder="Cari berdasarkan judul musik"
@@ -26,7 +28,7 @@
                    aria-label="Cari berdasarkan judul musik">
             <button type="submit" class="button">Cari</button>
         </form>
-        <ul class="item-list">
+        <ul id="music-list" class="item-list">
             {% for music in music_list %}
             <li class="item-card">
                 <p class="item-date">{{ music.released_at|date:"d M Y" }}</p>
@@ -55,4 +57,52 @@
         </ul>
     </div>
 </section>
+
+<script>
+    // Pencarian dengan debouncing. Daftar tetap dirender server (agar tombol
+    // star/edit/hapus ikut), JavaScript hanya mengganti isi <ul> dari halaman
+    // hasil pencarian. Tanpa JavaScript, form tetap bekerja lewat GET biasa.
+    const MUSIC_SEARCH_DEBOUNCE_DELAY = 300;
+    const musicSearchForm = document.getElementById('music-search-form');
+    const musicSearchInput = document.getElementById('music-search-input');
+    const musicList = document.getElementById('music-list');
+    let musicSearchTimer;
+    let musicAbortController;
+
+    async function searchMusic() {
+        if (musicAbortController) musicAbortController.abort();
+        musicAbortController = new AbortController();
+
+        const query = musicSearchInput.value.trim();
+        const url = new URL(musicSearchForm.action, window.location.origin);
+        if (query) url.searchParams.set('title', query);
+
+        try {
+            const response = await fetch(url, { signal: musicAbortController.signal });
+            if (!response.ok) throw new Error('Failed to fetch music');
+
+            const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const newList = doc.getElementById('music-list');
+            if (!newList) throw new Error('Unexpected response');
+
+            musicList.innerHTML = newList.innerHTML;
+            history.replaceState(null, '', url);
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            console.error('Error searching music:', error);
+            showToast('Gagal mencari musik', 'Silakan coba lagi.', 'error');
+        }
+    }
+
+    musicSearchInput.addEventListener('input', function () {
+        clearTimeout(musicSearchTimer);
+        musicSearchTimer = setTimeout(searchMusic, MUSIC_SEARCH_DEBOUNCE_DELAY);
+    });
+
+    musicSearchForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        clearTimeout(musicSearchTimer);
+        searchMusic();
+    });
+</script>
 {% endblock %}
