@@ -35,9 +35,10 @@ class MusicForm(ModelForm):
                 }
             ),
             "released_at": DateInput(
+                format="%Y-%m-%d",
                 attrs={
                     "type": "date",
-                }
+                },
             ),
             "audio_path": TextInput(
                 attrs={
@@ -46,6 +47,26 @@ class MusicForm(ModelForm):
                 }
             ),
         }
+
+    # Lapisan pertahanan kedua terhadap XSS; pertahanan utama tetap escaping
+    # saat data ditampilkan (template Django atau escapeHtml di JavaScript).
+    def clean_name(self):
+        name = strip_tags(self.cleaned_data["name"]).strip()
+        if not name:
+            raise ValidationError("Judul lagu tidak boleh hanya berisi tag HTML.")
+        return name
+
+    def clean_description(self):
+        description = strip_tags(self.cleaned_data["description"]).strip()
+        if not description:
+            raise ValidationError("Deskripsi lagu tidak boleh hanya berisi tag HTML.")
+        return description
+
+    def clean_audio_path(self):
+        audio_path = strip_tags(self.cleaned_data["audio_path"]).strip()
+        if not audio_path:
+            raise ValidationError("Path audio tidak boleh kosong.")
+        return audio_path
 
 
 class ProjectForm(ModelForm):

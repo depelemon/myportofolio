@@ -41,7 +41,8 @@
 </section>
 
 {% if can_manage %}
-    {% include "components/project_form_modal.html" %}
+    {% url 'main:create_project' as create_project_url %}
+    {% include "components/form_modal.html" with modal_id="add-project-modal" form_id="project-form" title="Tambah Proyek Baru" action=create_project_url submit_label="Tambah Proyek" %}
 {% endif %}
 
 <script>
@@ -70,25 +71,8 @@
         gridContainer.classList.toggle('hide', !showGrid);
     }
 
-    // Mengubah karakter khusus HTML menjadi entity agar ditampilkan sebagai teks.
-    // Django tidak lagi meng-escape data yang dirakit lewat innerHTML.
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#39;');
-    }
-
-    // Format tanggal "YYYY-MM-DD" menjadi "01 Sep 2026" tanpa pergeseran zona waktu
-    function formatDate(isoDate) {
-        const date = new Date(isoDate);
-        if (Number.isNaN(date.getTime())) return '';
-        return date.toLocaleDateString('en-GB', {
-            day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
-        });
-    }
+    // escapeHtml, formatDate, getCookie, buildUrl, dan extractErrorMessage
+    // berasal dari static/js/utils.js (dimuat di base.html).
 
     // Truncate deskripsi seperti filter truncatechars:100 pada template lama
     function truncate(text, max = 100) {
@@ -99,8 +83,7 @@
     // Membuat elemen card project
     function buildProjectCardElement(item) {
         const project = item.fields;
-        const detailUrl = PROJECT_DETAIL_URL_TEMPLATE
-            .replace('00000000-0000-0000-0000-000000000000', encodeURIComponent(item.pk));
+        const detailUrl = buildUrl(PROJECT_DETAIL_URL_TEMPLATE, item.pk);
 
         const thumbnailHtml = project.thumbnail
             ? `<img class="item-thumbnail" src="${escapeHtml(project.thumbnail)}" alt="Thumbnail ${escapeHtml(project.title)}" loading="lazy">`
@@ -186,22 +169,6 @@
         document.getElementById('add-project-modal').hidePopover();
     }
 
-    // Membaca nilai cookie, digunakan untuk mengambil token CSRF
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
     // Mengirim data form ke server
     async function addProject(event) {
         event.preventDefault();
@@ -223,10 +190,7 @@
                 showToast('Berhasil', 'Proyek baru berhasil ditambahkan!', 'success');
                 fetchProjects(searchInput.value.trim());
             } else {
-                const errorMessages = result.errors
-                    ? Object.values(result.errors).flat().map(error => error.message)
-                    : [result.message || `Terjadi kesalahan (status ${response.status}).`];
-                showToast('Gagal menambahkan proyek', errorMessages.join(' '), 'error');
+                showToast('Gagal menambahkan proyek', extractErrorMessage(result, response.status), 'error');
             }
         } catch (error) {
             console.error('Error adding project:', error);

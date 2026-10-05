@@ -79,13 +79,16 @@ class MusicTest(TestCase):
             released_at=date(2026, 5, 17),
             audio_path="audio/lagu-tugas-akhir.mp3",
         )
-        response = self.client.get(reverse("main:show_music"))
+        response = self.client.get(reverse("main:get_music_json"))
+        item = response.json()[0]
 
-        self.assertContains(response, music.name)
-        self.assertContains(response, music.description)
-        self.assertContains(response, "17 May 2026")
-        self.assertContains(response, 'src="/static/audio/lagu-tugas-akhir.mp3"')
-        self.assertNotContains(response, "Belum ada musik yang ditambahkan.")
+        self.assertEqual(item["pk"], str(music.id))
+        self.assertEqual(item["fields"]["name"], music.name)
+        self.assertEqual(item["fields"]["description"], music.description)
+        self.assertEqual(item["fields"]["released_at"], "2026-05-17")
+        self.assertEqual(
+            item["fields"]["audio_url"], "/static/audio/lagu-tugas-akhir.mp3"
+        )
 
     def test_music_audio_path_is_normalized(self):
         music = Music.objects.create(
@@ -242,10 +245,8 @@ class MusicAuthorizationTest(RoleTestMixin, TestCase):
         self.assertTrue(Music.objects.filter(pk=self.music.pk).exists())
 
     def test_controls_are_hidden_by_role(self):
-        edit_url = reverse("main:update_music", args=[self.music.id])
-        create_url = reverse("main:create_music")
-        delete_url = reverse("main:delete_music", args=[self.music.id])
-
+        # Tombol per card dirender JavaScript berdasarkan flag ini; modal
+        # tambah dan hapus hanya ada di HTML milik pemilik portofolio.
         cases = [
             (None, False, False),
             (self.user, False, False),
@@ -258,9 +259,16 @@ class MusicAuthorizationTest(RoleTestMixin, TestCase):
                 if account:
                     self.login_as(account)
                 content = self.client.get(reverse("main:show_music")).content.decode()
-                self.assertEqual(edit_url in content, sees_edit)
-                self.assertEqual(create_url in content, sees_manage)
-                self.assertEqual(delete_url in content, sees_manage)
+                self.assertIn(
+                    f'const CAN_EDIT = "{str(sees_edit).lower()}" === "true";',
+                    content,
+                )
+                self.assertIn(
+                    f'const CAN_MANAGE = "{str(sees_manage).lower()}" === "true";',
+                    content,
+                )
+                self.assertEqual('id="add-music-modal"' in content, sees_manage)
+                self.assertEqual('id="delete-music-modal"' in content, sees_manage)
 
 
 class MusicStarTest(RoleTestMixin, TestCase):
@@ -315,10 +323,9 @@ class MusicStarTest(RoleTestMixin, TestCase):
             )
             music.starred_by.add(self.user)
         self.login_as(self.user)
-        # sesi, user, grup Editor (context processor), daftar musik,
-        # jumlah star, dan status star pengguna.
-        with self.assertNumQueries(6):
-            self.client.get(reverse("main:show_music"))
+        # sesi, user, daftar musik, jumlah star, dan status star pengguna.
+        with self.assertNumQueries(5):
+            self.client.get(reverse("main:get_music_json"))
 
 
 class ProjectAuthorizationTest(RoleTestMixin, TestCase):
@@ -497,3 +504,102 @@ class ProjectAjaxTest(RoleTestMixin, TestCase):
         self.assertNotContains(self.client.get(url), 'id="add-project-modal"')
         self.login_as(self.owner)
         self.assertContains(self.client.get(url), 'id="add-project-modal"')
+
+
+class MusicAjaxTest(RoleTestMixin, TestCase):
+    def test_music_page_has_no_server_rendered_list(self):
+        response = self.client.get(reverse("main:show_music"))
+        self.assertNotContains(response, self.music.name)
+        for element_id in ("music-list", "music-loading", "music-error", "music-empty"):
+            self.assertContains(response, f'id="{element_id}"')
+
+    def test_json_includes_star_info_for_current_user_only(self):
+        self.music.starred_by.add(self.user)
+        url = reverse("main:get_music_json")
+
+        fields = self.client.get(url).json()[0]["fields"]
+        self.assertEqual(fields["star_count"], 1)
+        self.assertFalse(fields["is_starred"])
+
+        self.login_as(self.user)
+        fields = self.client.get(url).json()[0]["fields"]
+        self.assertTrue(fields["is_starred"])
+
+    def test_owner_can_create_via_ajax(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            reverse("main:create_music_ajax"), self.music_payload()
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Music.objects.filter(name="Lagu Baru").exists())
+
+    def test_anonymous_editor_and_regular_user_get_json_403(self):
+        url = reverse("main:create_music_ajax")
+        for user in (None, self.user, self.editor):
+            with self.subTest(user=user):
+                self.client.logout()
+                if user:
+                    self.login_as(user)
+                response = self.client.post(url, self.music_payload())
+                self.assertEqual(response.status_code, 403)
+                self.assertIn("message", response.json())
+        self.assertFalse(Music.objects.filter(name="Lagu Baru").exists())
+
+    def test_create_ajax_requires_post(self):
+        self.login_as(self.owner)
+        response = self.client.get(reverse("main:create_music_ajax"))
+        self.assertEqual(response.status_code, 405)
+
+    def test_create_ajax_enforces_csrf(self):
+        client = self.client_class(enforce_csrf_checks=True)
+        client.force_login(self.owner)
+        response = client.post(reverse("main:create_music_ajax"), self.music_payload())
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Music.objects.filter(name="Lagu Baru").exists())
+
+    def test_invalid_data_returns_400_with_errors(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            reverse("main:create_music_ajax"),
+            self.music_payload(name="   ", released_at="bukan-tanggal"),
+        )
+        self.assertEqual(response.status_code, 400)
+        errors = response.json()["errors"]
+        self.assertIn("name", errors)
+        self.assertIn("released_at", errors)
+
+    def test_html_is_stripped_and_html_only_name_rejected(self):
+        self.login_as(self.owner)
+        url = reverse("main:create_music_ajax")
+        self.client.post(
+            url,
+            self.music_payload(
+                name="Halo <b>dunia</b>",
+                description="<script>alert(1)</script>Lagu santai",
+            ),
+        )
+        music = Music.objects.get(name="Halo dunia")
+        self.assertEqual(music.description, "alert(1)Lagu santai")
+
+        response = self.client.post(
+            url, self.music_payload(name="<img src=\"x\" onerror=\"alert('XSS!')\">")
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_add_modal_only_for_owner(self):
+        url = reverse("main:show_music")
+        self.assertNotContains(self.client.get(url), 'id="add-music-modal"')
+        self.login_as(self.editor)
+        self.assertNotContains(self.client.get(url), 'id="add-music-modal"')
+        self.login_as(self.owner)
+        self.assertContains(self.client.get(url), 'id="add-music-modal"')
+
+    def test_star_toggle_returns_json_for_fetch(self):
+        self.login_as(self.user)
+        url = reverse("main:toggle_music_star", args=[self.music.id])
+
+        response = self.client.post(url, HTTP_ACCEPT="application/json")
+        self.assertEqual(response.json(), {"is_starred": True, "star_count": 1})
+
+        response = self.client.post(url, HTTP_ACCEPT="application/json")
+        self.assertEqual(response.json(), {"is_starred": False, "star_count": 0})

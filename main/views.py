@@ -4,9 +4,9 @@ from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.core import serializers
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -31,6 +31,14 @@ def safe_next_url(request):
     ):
         return next_url
     return None
+
+def wants_json(request):
+    """True jika request berasal dari fetch() yang meminta balasan JSON.
+
+    Submit form biasa dari browser mengirim ``Accept: text/html,...``, jadi
+    view yang sama tetap bisa melayani form tanpa JavaScript.
+    """
+    return "application/json" in request.headers.get("Accept", "")
 
 def redirect_back(request, fallback, *args, **kwargs):
     """Redirect ke ``next`` (jika aman) atau ke URL ``fallback``."""
@@ -213,26 +221,34 @@ def get_music_json(request):
     if title_query:
         musics = musics.filter(name__icontains=title_query)
 
-    musics_json = serializers.serialize(
-        "json", musics, fields=PUBLIC_MUSIC_FIELDS
-    )
-    return HttpResponse(musics_json, content_type="application/json")
+    musics = list(musics)
+    attach_star_info(musics, Music, request.user)
+
+    # JSON dirakit manual (sama seperti get_projects_json) agar bisa
+    # menyertakan status star pengguna yang sedang login dan URL audio yang
+    # siap dipakai sebagai `src`. Username pemberi star tidak disertakan.
+    data = [
+        {
+            "pk": str(music.id),
+            "fields": {
+                **{field: getattr(music, field) for field in PUBLIC_MUSIC_FIELDS},
+                "audio_url": static(music.audio_path),
+                "star_count": music.star_count,
+                "is_starred": music.is_starred,
+            },
+        }
+        for music in musics
+    ]
+    return JsonResponse(data, safe=False)
 
 def show_music(request):
-    json_response = get_music_json(request)
-
-    musics = serializers.deserialize(
-        "json",
-        json_response.content.decode("utf-8"),
-    )
-    musics = [music.object for music in musics]
-    attach_star_info(musics, Music, request.user)
+    # Daftar musik diambil browser lewat AJAX dari get_music_json.
     title_query = request.GET.get("title", "").strip()
 
     context = {
         "name": "David Liman",
-        "music_list": musics,
         "title_query": title_query,
+        "form": MusicForm(),
     }
     return render(request, "music.html", context)
 
@@ -260,6 +276,26 @@ def create_music(request):
         "form": form,
     }
     return render(request, "music_form.html", context)
+
+# Sama seperti create_project_ajax: tanpa @owner_required agar pengunjung
+# yang belum login mendapat JSON 403, bukan redirect ke halaman login.
+@require_POST
+def create_music_ajax(request):
+    if not can_manage(request.user):
+        return JsonResponse(
+            {"message": "Hanya pemilik portofolio yang dapat menambahkan musik."},
+            status=403,
+        )
+
+    form = MusicForm(request.POST)
+    if form.is_valid():
+        music = form.save()
+        return JsonResponse(
+            {"message": "Musik berhasil ditambahkan.", "pk": str(music.id)},
+            status=201,
+        )
+
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
 
 @editor_required
 def update_music(request, music_id):
@@ -290,7 +326,14 @@ def delete_music(request, music_id):
 @require_POST
 def toggle_music_star(request, music_id):
     music = get_object_or_404(Music, pk=music_id)
-    toggle_user_star(music, request.user)
+    is_starred = toggle_user_star(music, request.user)
+
+    # Dipanggil lewat fetch() dari halaman daftar musik: balas status terbaru
+    # agar tombol bisa diperbarui tanpa reload. Form biasa tetap di-redirect.
+    if wants_json(request):
+        return JsonResponse(
+            {"is_starred": is_starred, "star_count": music.starred_by.count()}
+        )
     return redirect_back(request, "main:music_detail", music_id=music.id)
 
 # Tanpa cek peran: semua akun yang sudah login boleh memberi star

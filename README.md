@@ -66,6 +66,45 @@ Berikut langkah-langkah untuk menjalankan proyek ini secara lokal.
 
 # Progres Mingguan
 
+## Tugas 5: Interaktivitas dengan JavaScript (AJAX)
+
+Pola dari Tutorial 05 (yang dipakai di Projects) sekarang diterapkan ke bagian **Music** dari Tugas 3 dan 4. Tidak ada migrasi baru di tugas ini.
+
+### Alur halaman `/music/`
+
+1. `show_music` hanya merender kerangka halaman: form pencarian, elemen loading/error/empty, `<ul id="music-list">` kosong, dan (khusus pemilik) modal tambah serta modal hapus.
+2. JavaScript memanggil `fetch('/api/music/')`, lalu membangun card dari JSON. Saat data dimuat tampil *"Memuat musik..."*, saat kosong tampil pesan kosong (berbeda untuk hasil pencarian), dan saat gagal tampil pesan error dengan tombol **Coba lagi**.
+3. Pencarian berdasarkan judul dikirim lewat AJAX dengan *debouncing* 300 ms. Request sebelumnya dibatalkan dengan `AbortController` agar hasil lama tidak menimpa hasil baru, dan kata kunci disimpan di URL (`?title=`) agar tetap sama saat halaman di-reload.
+
+### Endpoint
+
+| Method | URL                    | View                  | Keterangan                                                                                                                                                |
+| ------ | ---------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/music/?title=` | `get_music_json`    | JSON dirakit manual dengan`JsonResponse`: field publik, `audio_url`, `star_count`, dan `is_starred` untuk pengguna yang sedang login.             |
+| POST   | `/music/add-ajax/`   | `create_music_ajax` | Validasi dengan`MusicForm`, balas **201** (berhasil), **400** (berisi `errors` per field), atau **403** (bukan pemilik portofolio). |
+| POST   | `/music/<id>/star/`  | `toggle_music_star` | Jika request mengirim`Accept: application/json`, balas `{is_starred, star_count}`; submit form biasa tetap di-redirect seperti Tugas 4.               |
+
+`create_music_ajax` sengaja tidak memakai `@owner_required`, karena decorator itu me-redirect pengunjung ke halaman login, sehingga `fetch()` akan menerima HTML halaman login dengan status 200. Hak akses diperiksa langsung di dalam view dengan `can_manage()`, jadi pengunjung, pengguna biasa, dan editor sama-sama mendapat JSON 403.
+
+### Tambah data lewat modal
+
+- Tombol **+ Tambah Musik** (hanya untuk pemilik) membuka modal berisi `MusicForm`. Modal ini memakai komponen bersama [templates/components/form_modal.html](templates/components/form_modal.html) yang juga dipakai Projects.
+- Form dikirim dengan `fetch()` + `FormData`. Token CSRF ikut lewat field `csrfmiddlewaretoken` dari `{% csrf_token %}` dan header `X-CSRFToken`.
+- Jika berhasil, form di-reset, modal ditutup, toast sukses tampil, dan daftar dimuat ulang tanpa reload halaman. Jika gagal, toast error menampilkan pesan validasi dari server (misalnya *"Judul lagu tidak boleh hanya berisi tag HTML."*).
+
+### Perlindungan XSS
+
+- **Sisi client:** setiap nilai dari server yang masuk ke `innerHTML` melewati `escapeHtml()`, termasuk yang dipakai sebagai atribut (`href`, `src`, `data-name`). Nama musik di modal hapus diisi dengan `textContent`, dan toast juga memakai `textContent`.
+- **Sisi server:** `MusicForm` punya `clean_name`, `clean_description`, dan `clean_audio_path` yang menjalankan `strip_tags`. Input yang hanya berisi tag HTML, seperti `<img src="x" onerror="alert('XSS!')">`, ditolak dengan status 400.
+
+### Fitur tambahan
+
+- **Star tanpa reload** di halaman daftar: tombol star diperbarui dari balasan JSON server. Pengunjung yang belum login melihat link *Login untuk star* yang kembali ke halaman ini setelah login.
+- Tombol **Edit** (editor dan pemilik) dan **Hapus Musik** (pemilik) tetap ada di setiap card. Modal hapus dipakai bersama oleh semua card; JavaScript hanya mengisi judul dan URL-nya, sedangkan penghapusan tetap lewat form `POST` dengan CSRF.
+- Helper `escapeHtml`, `getCookie`, `formatDate`, `buildUrl`, dan `extractErrorMessage` dipindahkan ke [static/js/utils.js](static/js/utils.js) dan dimuat di `base.html`, sehingga Projects dan Music tidak menyalin fungsi yang sama.
+- Halaman tambah musik lama (`/music/add/`) tetap ada sebagai fallback jika JavaScript tidak berjalan.
+- Test baru di `MusicAjaxTest` ([main/tests.py](main/tests.py)) mencakup halaman kerangka, info star di JSON, status 201/400/403/405, penolakan tanpa token CSRF, `strip_tags`, dan toggle star via JSON.
+
 ## Tugas 4: Autentikasi, Otorisasi, dan Star
 
 Bagian portofolio dari Tugas 3 (**Music**) sekarang mengikuti hak akses pengguna. Pola yang sama juga diterapkan ke **Projects**.
@@ -115,21 +154,24 @@ Untuk branching, saya memutuskan menggunakan branch bertahap dari branch dev ke 
 
 Untuk setiap fitur baru yang signifikan, akan ada branch baru yang dibuat dari branch dev (contohnya feat/<feature-name></feature>). Dengan melakukan branching bertahap, setiap perubahan dapat diuji secara terpisah sebelum digabungkan ke branch utama, sehingga meminimalkan potensi konflik dan memastikan stabilitas kode.
 
-# AI Disclosure (last upd: Tugas Individu 4)
+# AI Disclosure (last upd: Tugas Individu 5)
 
 Saya menggunakan Claude Code dan Copilot (BYOK dengan API key dari DeepSeek), serta Claude via Web Browser untuk membantu proses pembelajaran di Tugas Individu 1 ini. Claude via Web Browser saya gunakan untuk menanyakan konsep-konsep Web Development, sedangkan Claude Code dan Copilot untuk agentic atau untuk pertanyaan yang membutuhkan konteks kode.
 
 Prompt yang saya gunakan:
 
 ```
-1. baca tugas 4 pdf, dan lakukan tasknya secara bertahap (commit setiap perubahan
-   bermakna, di branch dev, nanti kumerge ke main kalau sudah oke)
-2. undo your commits so i can see what changes there are
-3. jelaskan kenapa bikin file baru seperti context processors, roles, dan stars?
+Tugas 5:
+1. apakah template html sekarang sudah menampilkan hanya kerangka halaman dan
+   fetch data melalui js, atau masih ada yang hardcoded?
+2. apa plus minusnya sih pakai jsonresponse dibanding serializer
+3. apa itu ajax di javascript (bedanya dengan javascript biasa yang kita pakai apa?) dan apa itu XSS
+4. coba lengkapi tugas 5 saya, sesuaikan dengan modul yang ada (music dan project, bukan project saja)
 ```
 
 * AI menambahkan hal di luar kriteria soal: file `roles.py`, `stars.py`, `context_processors.py`, halaman detail musik, dan proteksi pada Projects. Saya meminta penjelasannya dulu sebelum memutuskan untuk keep apa yang diubah AI. Alasannya masuk akal: tanpa decorator, cek peran harus ditulis ulang di 6 view. Terbukti pula view update/delete Projects dari tutorial sebelumnya bisa diakses tanpa login. Namun, strukturnya jadi berbeda dari pola tutorial, sehingga saya perlu memahami tiap file sebelum commit.
 * AI menemukan bahwa `/api/project/` membocorkan username pengguna yang memberi star (`use_natural_foreign_keys`). Saya memverifikasinya lewat output JSON sebelum dan sesudah perbaikan.
+* Tugas 5: saya meminta AI mengaudit dulu template mana yang masih dirender server sebelum mengimplementasikan. Hasilnya, Projects sudah AJAX tetapi Music (bagian Tugas 3/4 yang dinilai) masih memakai `{% for %}`, dan pencarian Music hanya mengambil HTML halaman lalu menyalin isi `<ul>`-nya, bukan JSON. AI juga menambahkan hal di luar checklist: toggle star via AJAX, modal hapus bersama, dan `static/js/utils.js`. Keterbatasan yang perlu saya cek sendiri: test Django hanya menguji sisi server, jadi perilaku JavaScript (loading, toast, modal) tetap perlu dicoba manual di browser untuk setiap peran.
 
 # Pertanyaan Reflektif
 
@@ -228,3 +270,31 @@ Endpoint JSON hanya mengirim data tanpa tampilan, sehingga bisa dipakai ulang ol
 ## Tugas 4
 
 Tidak ada~
+
+### Tugas 5
+
+1. Jelaskan apa itu debouncing dan mengapa teknik ini penting diterapkan pada fitur pencarian yang menggunakan AJAX!
+
+Jawab: Debouncing adalah teknik menunda eksekusi sebuah fungsi sampai event berhenti terjadi selama jeda tertentu. Di halaman Music, setiap event `input` menghapus timer sebelumnya (`clearTimeout`) lalu membuat timer baru 300 ms (`setTimeout`), sehingga request ke `/api/music/?title=` hanya dikirim setelah pengguna berhenti mengetik selama 300 ms.
+
+Tanpa debouncing, mengetik "yorushika" akan mengirim 9 request, satu per huruf. Akibatnya:
+
+- server dan database menerima query yang sebagian besar langsung tidak terpakai,
+- daftar berkedip karena dirender ulang terus-menerus,
+- bisa terjadi *race condition*: response untuk "yoru" datang lebih lambat daripada response untuk "yorushika" dan menimpa hasil yang benar.
+
+Untuk kasus terakhir, saya juga membatalkan request lama dengan `AbortController`, karena debouncing saja belum cukup jika pengguna berhenti sebentar lalu lanjut mengetik.
+
+2. Jelaskan fungsi dari penggunaan `await` ketika kita menggunakan `fetch()`! Apa yang akan terjadi jika kita tidak menggunakan `await`?
+
+Jawab: `fetch()` bersifat asinkron: ia langsung mengembalikan sebuah `Promise`, bukan data. `await` (hanya bisa dipakai di dalam fungsi `async`) menghentikan sementara eksekusi fungsi tersebut sampai Promise selesai, lalu mengembalikan hasilnya. Selama menunggu, browser tetap responsif karena yang berhenti hanya fungsi itu, bukan seluruh halaman. Di `fetchMusic`, ada dua `await`: yang pertama menunggu `Response` (status dan header), yang kedua `await response.json()` menunggu body selesai dibaca dan diparse.
+
+Tanpa `await`, `response` berisi `Promise`, bukan `Response`, sehingga `response.ok` bernilai `undefined` dan `musicData.length` tidak bisa dipakai. Kode setelahnya berjalan sebelum data tiba, sehingga daftar tidak pernah terisi atau langsung masuk kondisi error. Selain itu, error jaringan tidak tertangkap oleh `try/catch` di sekitarnya karena Promise ditolak setelah blok tersebut selesai dieksekusi. Alternatif tanpa `await` adalah merangkai `.then()` dan `.catch()`, tetapi `async/await` lebih mudah dibaca karena alurnya terlihat berurutan.
+
+3. Jelaskan apa itu serangan XSS (Cross-Site Scripting) dan mengapa data yang ditampilkan melalui AJAX/JavaScript lebih rentan terhadap serangan ini daripada data yang ditampilkan langsung melalui template Django!
+
+Jawab: XSS adalah serangan di mana penyerang menyisipkan kode (biasanya JavaScript) ke dalam data yang nantinya ditampilkan ke pengguna lain. Contohnya, judul lagu diisi `<img src="x" onerror="alert('XSS!')">`. Jika judul itu dimasukkan ke HTML apa adanya, browser setiap pengunjung akan menjalankan `onerror`. Dalam kasus nyata, isinya bukan `alert`, melainkan kode untuk mencuri data, melakukan aksi atas nama korban (misalnya mengirim POST dengan sesi korban, karena token CSRF bisa dibaca dari halaman yang sama), atau mengubah tampilan halaman.
+
+Template Django melakukan *auto-escaping*: `{{ music.name }}` otomatis mengubah `<` menjadi `&lt;`, `"` menjadi `&quot;`, dan seterusnya, sehingga data tampil sebagai teks kecuali developer sengaja memakai `|safe`. Data dari AJAX tidak melewati template engine. JSON dari server berisi string mentah, dan ketika JavaScript menyisipkannya lewat `innerHTML` atau template literal, browser memperlakukannya sebagai HTML. Jadi perlindungan yang tadinya otomatis hilang, dan developer harus ingat meng-escape setiap nilai secara manual. Satu nilai saja yang terlewat sudah cukup menjadi celah.
+
+Karena itu di halaman Music saya memakai dua lapis pertahanan: `escapeHtml()` atau `textContent` untuk setiap nilai yang ditampilkan lewat JavaScript, dan `strip_tags` di `clean_<field>` pada `MusicForm` agar tag HTML tidak tersimpan di database sejak awal.

@@ -2,6 +2,7 @@ from django.urls import path
 
 from main.views import (
     create_music,
+    create_music_ajax,
     create_project,
     create_project_ajax,
     delete_music,
@@ -36,6 +37,7 @@ urlpatterns = [
     path("projects/<uuid:project_id>/delete/", delete_project, name="delete_project"),
     path("music/", show_music, name="show_music"),
     path("music/add/", create_music, name="create_music"),
+    path("music/add-ajax/", create_music_ajax, name="create_music_ajax"),
     path("music/<uuid:music_id>/", music_detail, name="music_detail"),
     path("music/<uuid:music_id>/edit/", update_music, name="update_music"),
     path("music/<uuid:music_id>/delete/", delete_music, name="delete_music"),

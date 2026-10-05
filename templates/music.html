@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load static %}
 {% block title %}Music - {{ name }}{% endblock %}
 {% block content %}
 <section class="listing" id="music">
@@ -8,17 +7,15 @@
         <div class="page-header">
             <h1 class="section-title">Music</h1>
             {% if can_manage %}
-                <a href="{% url 'main:create_music' %}"
-                class="button project-add-button">
+                <button type="button"
+                        class="button add-button"
+                        popovertarget="add-music-modal">
                     <span aria-hidden="true">+</span>
                     Tambah Musik
-                </a>
+                </button>
             {% endif %}
         </div>
-        <form id="music-search-form"
-              method="get"
-              action="{% url 'main:show_music' %}"
-              class="search-form">
+        <form id="music-search-form" class="search-form" role="search">
             <input type="search"
                    id="music-search-input"
                    name="title"
@@ -28,81 +25,329 @@
                    aria-label="Cari berdasarkan judul musik">
             <button type="submit" class="button">Cari</button>
         </form>
-        <ul id="music-list" class="item-list">
-            {% for music in music_list %}
-            <li class="item-card">
-                <p class="item-date">{{ music.released_at|date:"d M Y" }}</p>
-                <h3><a href="{% url 'main:music_detail' music.id %}" class="item-card__heading-link">{{ music.name }}</a></h3>
-                <p class="item-description">{{ music.description|linebreaksbr }}</p>
-                <audio class="music-player" controls preload="none" src="{% static music.audio_path %}">
-                    Browser kamu tidak mendukung pemutar audio.
-                </audio>
-                <div class="item-card-actions">
-                    {% include "components/music_star.html" with music=music %}
-                    {% if can_edit %}
-                        <a href="{% url 'main:update_music' music.id %}" class="button button-secondary">Edit</a>
-                    {% endif %}
-                    {% if can_manage %}
-                        {% include "components/music_delete_modal.html" with music=music %}
-                    {% endif %}
-                </div>
-            </li>
-            {% empty %}
-                {% if title_query %}
-                    <li class="item-empty">Tidak ada musik dengan judul tersebut.</li>
-                {% else %}
-                    <li class="item-empty">Belum ada musik yang ditambahkan.</li>
-                {% endif %}
-            {% endfor %}
-        </ul>
+
+        <!-- Loading State -->
+        <p id="music-loading" class="item-empty hide" role="status">Memuat musik...</p>
+
+        <!-- Error State -->
+        <div id="music-error" class="item-empty hide" role="alert">
+            <p>Gagal memuat data musik.</p>
+            <button type="button" id="music-retry" class="button button-secondary">Coba lagi</button>
+        </div>
+
+        <!-- Empty State -->
+        <p id="music-empty" class="item-empty hide">Belum ada musik yang ditambahkan.</p>
+
+        <!-- Music List -->
+        <ul id="music-list" class="item-list hide" aria-live="polite"></ul>
     </div>
 </section>
 
-<script>
-    // Pencarian dengan debouncing. Daftar tetap dirender server (agar tombol
-    // star/edit/hapus ikut), JavaScript hanya mengganti isi <ul> dari halaman
-    // hasil pencarian. Tanpa JavaScript, form tetap bekerja lewat GET biasa.
-    const MUSIC_SEARCH_DEBOUNCE_DELAY = 300;
-    const musicSearchForm = document.getElementById('music-search-form');
-    const musicSearchInput = document.getElementById('music-search-input');
-    const musicList = document.getElementById('music-list');
-    let musicSearchTimer;
-    let musicAbortController;
+{% if can_manage %}
+    {% url 'main:create_music' as create_music_url %}
+    {% include "components/form_modal.html" with modal_id="add-music-modal" form_id="music-form" title="Tambah Musik Baru" action=create_music_url submit_label="Tambah Musik" %}
 
-    async function searchMusic() {
+    {# Satu modal hapus dipakai bersama; judul dan URL diisi JavaScript. #}
+    <div id="delete-music-modal"
+         class="delete-modal"
+         popover="auto"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="delete-music-modal-title">
+        <button type="button"
+                class="delete-modal__backdrop"
+                popovertarget="delete-music-modal"
+                popovertargetaction="hide"
+                aria-label="Tutup konfirmasi hapus"></button>
+        <div class="delete-modal__content">
+            <button type="button"
+                    class="delete-modal__close"
+                    popovertarget="delete-music-modal"
+                    popovertargetaction="hide"
+                    aria-label="Tutup konfirmasi hapus">×</button>
+            <h2 id="delete-music-modal-title">Hapus Musik?</h2>
+            <p>
+                Apakah Anda yakin ingin menghapus
+                <strong id="delete-music-name"></strong>?
+            </p>
+            <div class="delete-modal__actions">
+                <button type="button"
+                        class="button button-secondary"
+                        popovertarget="delete-music-modal"
+                        popovertargetaction="hide">Batal</button>
+                <form id="delete-music-form" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="button button-danger">Ya, Hapus</button>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<script>
+    // Konfigurasi
+    const MUSIC_ENDPOINT = "{% url 'main:get_music_json' %}";
+    const CREATE_MUSIC_ENDPOINT = "{% url 'main:create_music_ajax' %}";
+    const MUSIC_DETAIL_URL_TEMPLATE = "{% url 'main:music_detail' '00000000-0000-0000-0000-000000000000' %}";
+    const MUSIC_EDIT_URL_TEMPLATE = "{% url 'main:update_music' '00000000-0000-0000-0000-000000000000' %}";
+    const MUSIC_DELETE_URL_TEMPLATE = "{% url 'main:delete_music' '00000000-0000-0000-0000-000000000000' %}";
+    const MUSIC_STAR_URL_TEMPLATE = "{% url 'main:toggle_music_star' '00000000-0000-0000-0000-000000000000' %}";
+    const LOGIN_URL = "{% url 'main:login' %}";
+
+    // Hanya untuk menampilkan/menyembunyikan tombol. Hak akses sebenarnya
+    // tetap diperiksa di view (lihat main/roles.py).
+    const IS_AUTHENTICATED = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
+    const CAN_EDIT = "{{ can_edit|yesno:'true,false' }}" === "true";
+    const CAN_MANAGE = "{{ can_manage|yesno:'true,false' }}" === "true";
+
+    const SEARCH_DEBOUNCE_DELAY = 300;
+    let musicAbortController;
+    let searchDebounceTimer;
+
+    // Elemen DOM
+    const loadingState = document.getElementById('music-loading');
+    const errorState = document.getElementById('music-error');
+    const emptyState = document.getElementById('music-empty');
+    const musicList = document.getElementById('music-list');
+    const searchForm = document.getElementById('music-search-form');
+    const searchInput = document.getElementById('music-search-input');
+    // Dua elemen di bawah hanya dirender untuk pemilik portofolio (null untuk peran lain)
+    const musicForm = document.getElementById('music-form');
+    const deleteModal = document.getElementById('delete-music-modal');
+
+    // Menyembunyikan/menampilkan bagian halaman
+    function displayPageSection({ showLoading = false, showError = false, showEmpty = false, showList = false }) {
+        loadingState.classList.toggle('hide', !showLoading);
+        errorState.classList.toggle('hide', !showError);
+        emptyState.classList.toggle('hide', !showEmpty);
+        musicList.classList.toggle('hide', !showList);
+    }
+
+    // Tombol star: form AJAX untuk pengguna login, link ke login untuk pengunjung
+    function buildStarHtml(item) {
+        const music = item.fields;
+        const count = `<span class="star-count">${escapeHtml(music.star_count)}</span>`;
+
+        if (!IS_AUTHENTICATED) {
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
+            return `<a href="${escapeHtml(LOGIN_URL)}?next=${escapeHtml(next)}"
+                       class="button button-star" title="Login untuk memberi star">
+                        <span aria-hidden="true">★</span> Login untuk star ${count}
+                    </a>`;
+        }
+
+        const starredClass = music.is_starred ? ' is-starred' : '';
+        return `<button type="button"
+                        class="button button-star${starredClass}"
+                        data-action="star"
+                        data-url="${escapeHtml(buildUrl(MUSIC_STAR_URL_TEMPLATE, item.pk))}"
+                        aria-pressed="${music.is_starred}"
+                        title="${music.is_starred ? 'Batalkan star' : 'Beri star'}">
+                    <span aria-hidden="true">★</span>
+                    <span class="star-label">${music.is_starred ? 'Starred' : 'Star'}</span>
+                    ${count}
+                </button>`;
+    }
+
+    // Membuat elemen card musik. Setiap nilai dari server di-escape sebelum
+    // masuk ke innerHTML, termasuk yang dipakai sebagai atribut (src, href).
+    function buildMusicCardElement(item) {
+        const music = item.fields;
+
+        const editHtml = CAN_EDIT
+            ? `<a href="${escapeHtml(buildUrl(MUSIC_EDIT_URL_TEMPLATE, item.pk))}" class="button button-secondary">Edit</a>`
+            : '';
+        const deleteHtml = CAN_MANAGE
+            ? `<button type="button" class="button button-danger" data-action="delete"
+                       data-url="${escapeHtml(buildUrl(MUSIC_DELETE_URL_TEMPLATE, item.pk))}"
+                       data-name="${escapeHtml(music.name)}">Hapus Musik</button>`
+            : '';
+
+        const li = document.createElement('li');
+        li.className = 'item-card';
+        li.innerHTML = `
+            <p class="item-date">${escapeHtml(formatDate(music.released_at))}</p>
+            <h3>
+                <a href="${escapeHtml(buildUrl(MUSIC_DETAIL_URL_TEMPLATE, item.pk))}"
+                   class="item-card__heading-link">${escapeHtml(music.name)}</a>
+            </h3>
+            <p class="item-description">${escapeHtml(music.description).replaceAll('\n', '<br>')}</p>
+            <audio class="music-player" controls preload="none" src="${escapeHtml(music.audio_url)}">
+                Browser kamu tidak mendukung pemutar audio.
+            </audio>
+            <div class="item-card-actions">
+                ${buildStarHtml(item)}
+                ${editHtml}
+                ${deleteHtml}
+            </div>
+        `;
+        return li;
+    }
+
+    // Fetch data musik
+    async function fetchMusic(searchQuery = '') {
+        // Batalkan request sebelumnya agar hasil lama tidak menimpa hasil baru
         if (musicAbortController) musicAbortController.abort();
         musicAbortController = new AbortController();
 
-        const query = musicSearchInput.value.trim();
-        const url = new URL(musicSearchForm.action, window.location.origin);
-        if (query) url.searchParams.set('title', query);
-
         try {
-            const response = await fetch(url, { signal: musicAbortController.signal });
-            if (!response.ok) throw new Error('Failed to fetch music');
+            displayPageSection({ showLoading: true });
 
-            const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-            const newList = doc.getElementById('music-list');
-            if (!newList) throw new Error('Unexpected response');
+            const url = searchQuery
+                ? `${MUSIC_ENDPOINT}?title=${encodeURIComponent(searchQuery)}`
+                : MUSIC_ENDPOINT;
 
-            musicList.innerHTML = newList.innerHTML;
-            history.replaceState(null, '', url);
+            const response = await fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                signal: musicAbortController.signal,
+            });
+
+            if (!response.ok) throw new Error(`Failed to fetch data (status ${response.status})`);
+
+            const musicData = await response.json();
+
+            if (musicData.length === 0) {
+                emptyState.textContent = searchQuery
+                    ? 'Tidak ada musik dengan judul tersebut.'
+                    : 'Belum ada musik yang ditambahkan.';
+                displayPageSection({ showEmpty: true });
+            } else {
+                musicList.replaceChildren(...musicData.map(buildMusicCardElement));
+                displayPageSection({ showList: true });
+            }
         } catch (error) {
             if (error.name === 'AbortError') return;
-            console.error('Error searching music:', error);
-            showToast('Gagal mencari musik', 'Silakan coba lagi.', 'error');
+            console.error('Error loading music:', error);
+            displayPageSection({ showError: true });
         }
     }
 
-    musicSearchInput.addEventListener('input', function () {
-        clearTimeout(musicSearchTimer);
-        musicSearchTimer = setTimeout(searchMusic, MUSIC_SEARCH_DEBOUNCE_DELAY);
+    // Pencarian dengan debouncing: tunggu pengguna berhenti mengetik
+    function searchMusic() {
+        const query = searchInput.value.trim();
+
+        // Simpan kata kunci di URL agar hasil tetap sama saat halaman di-reload
+        const pageUrl = new URL(window.location.href);
+        if (query) {
+            pageUrl.searchParams.set('title', query);
+        } else {
+            pageUrl.searchParams.delete('title');
+        }
+        history.replaceState(null, '', pageUrl);
+
+        fetchMusic(query);
+    }
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(searchMusic, SEARCH_DEBOUNCE_DELAY);
     });
 
-    musicSearchForm.addEventListener('submit', function (event) {
+    searchForm.addEventListener('submit', function (event) {
         event.preventDefault();
-        clearTimeout(musicSearchTimer);
+        clearTimeout(searchDebounceTimer);
         searchMusic();
     });
+
+    document.getElementById('music-retry').addEventListener('click', searchMusic);
+
+    // Beri/batalkan star tanpa reload; tombol diperbarui dari balasan server
+    async function toggleStar(button) {
+        button.disabled = true;
+
+        try {
+            const response = await fetch(button.dataset.url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+            });
+
+            // Sesi login habis: @login_required mengarahkan ke halaman login
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+            if (!response.ok) throw new Error(`Failed to toggle star (status ${response.status})`);
+
+            const { is_starred, star_count } = await response.json();
+            button.classList.toggle('is-starred', is_starred);
+            button.setAttribute('aria-pressed', is_starred);
+            button.title = is_starred ? 'Batalkan star' : 'Beri star';
+            button.querySelector('.star-label').textContent = is_starred ? 'Starred' : 'Star';
+            button.querySelector('.star-count').textContent = star_count;
+        } catch (error) {
+            console.error('Error toggling star:', error);
+            showToast('Gagal memberi star', 'Silakan coba lagi.', 'error');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    // Isi modal hapus dengan musik yang dipilih. Penghapusan tetap lewat
+    // form POST biasa (dengan token CSRF) ke view delete_music.
+    function openDeleteModal(button) {
+        document.getElementById('delete-music-name').textContent = button.dataset.name;
+        document.getElementById('delete-music-form').action = button.dataset.url;
+        deleteModal.showPopover();
+    }
+
+    // Event delegation: card dibuat ulang setiap fetch, jadi listener
+    // dipasang sekali pada <ul>, bukan pada tiap tombol.
+    musicList.addEventListener('click', function (event) {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+
+        if (button.dataset.action === 'star') {
+            toggleStar(button);
+        } else if (button.dataset.action === 'delete' && deleteModal) {
+            openDeleteModal(button);
+        }
+    });
+
+    // Mengirim form tambah musik ke server
+    async function addMusic(event) {
+        event.preventDefault();
+
+        const submitButton = musicForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+
+        try {
+            // FormData ikut membawa csrfmiddlewaretoken dari {% csrf_token %};
+            // header X-CSRFToken dikirim juga sebagai cara yang setara.
+            const response = await fetch(CREATE_MUSIC_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: new FormData(musicForm),
+            });
+            const result = await response.json().catch(() => ({}));
+
+            if (response.ok) {
+                musicForm.reset();
+                document.getElementById('add-music-modal').hidePopover();
+                showToast('Berhasil', 'Musik baru berhasil ditambahkan!', 'success');
+                fetchMusic(searchInput.value.trim());
+            } else {
+                showToast('Gagal menambahkan musik', extractErrorMessage(result, response.status), 'error');
+            }
+        } catch (error) {
+            console.error('Error adding music:', error);
+            showToast('Gagal menambahkan musik', 'Tidak dapat terhubung ke server. Silakan coba lagi.', 'error');
+        } finally {
+            submitButton.disabled = false;
+        }
+    }
+
+    // Modal hanya ada untuk pemilik portofolio; pengunjung lain tidak punya form ini
+    if (musicForm) {
+        musicForm.addEventListener('submit', addMusic);
+    }
+
+    // Start application
+    fetchMusic(searchInput.value.trim());
 </script>
 {% endblock %}
