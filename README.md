@@ -66,6 +66,60 @@ Berikut langkah-langkah untuk menjalankan proyek ini secara lokal.
 
 # Progres Mingguan
 
+## Tutorial 7: Django REST Framework
+
+Projects dan Music sekarang memiliki API versi 1. Halaman daftar memakai objek JSON datar
+(`id`, `title`/`name`, dan field lainnya), menggantikan pembungkus `pk`/`fields` pada API lama.
+Model dan data sebelumnya tetap dipakai, sehingga tidak ada migrasi baru.
+
+| Method | Projects | Music | Hak akses |
+| --- | --- | --- | --- |
+| GET / HEAD | `/api/v1/projects/` | `/api/v1/music/` | Publik; pencarian `?title=...` |
+| POST | `/api/v1/projects/` | `/api/v1/music/` | Pemilik (superuser) |
+| GET / HEAD | `/api/v1/projects/<uuid>/` | `/api/v1/music/<uuid>/` | Publik |
+| PUT / PATCH | `/api/v1/projects/<uuid>/` | `/api/v1/music/<uuid>/` | Pemilik; Editor juga boleh mengubah Music |
+| DELETE | `/api/v1/projects/<uuid>/` | `/api/v1/music/<uuid>/` | Pemilik |
+| POST | `/api/v1/projects/<uuid>/star/` | `/api/v1/music/<uuid>/star/` | Semua akun login |
+
+`SessionAuthentication` memakai login yang sudah ada. Semua operasi tulis melalui session
+wajib menyertakan CSRF. Browsable API tersedia pada endpoint yang sama, login API pada
+`/api-auth/login/`, dan JSON dapat diminta dengan `Accept: application/json` atau `?format=json`.
+
+`main/serializers.py` menangani representasi dan validasi, `main/permissions.py` memeriksa
+peran, dan `main/api_views.py` menangani request. Respons create adalah 201, update/star 200,
+delete 204 tanpa body, input salah 400, tidak berhak/CSRF gagal 403, objek hilang 404,
+dan method yang tidak didukung 405 setelah pemeriksaan izin.
+
+Penyesuaian dari contoh tutorial:
+
+- Project menggunakan field yang sudah ada: `title`, `description`, `released_at`, `thumbnail`.
+  Music menggunakan `name`, `description`, `released_at`, `audio_path`, ditambah `audio_url`
+  read-only. Field `id`, jumlah/status star, dan URL audio tidak dapat ditentukan klien.
+- Kebijakan privasi sebelumnya dipertahankan: API hanya mengirim `star_count` dan
+  `is_starred`, tanpa `starred_by_names`, ID, atau identitas pengguna lain.
+- API Projects mengikuti izin pemilik dari tutorial. Hak Editor pada halaman edit HTML
+  Projects yang sudah ada tetap tersedia; API Music menerapkan hak Editor untuk PUT/PATCH.
+- Endpoint JSON, AJAX, dan form HTML lama tetap tersedia sebagai kompatibilitas.
+
+Halaman Projects dan Music memakai API DRF untuk memuat, menambah, memberi/membatalkan star,
+dan menghapus data tanpa reload. Form tambah mengirim JSON; helper `writeApi` menangani
+CSRF, error DRF, serta body kosong pada 204. Pencarian tetap memakai debounce 300 ms dan
+`AbortController`. Tombol dinonaktifkan selama request tulis, teks dinamis di-escape,
+dan token CSRF dirender juga untuk pengguna biasa yang hanya memberi star.
+
+Untuk menjalankan dan memeriksa:
+
+```bash
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py check
+python manage.py test main.tests_api --verbosity 2
+python manage.py test main
+```
+
+Pengujian API mencakup CRUD, pencarian, validasi, privasi, field read-only, empat peran,
+star, method, dan session dengan/tanpa CSRF. Tidak ada commit atau deployment otomatis.
+
 ## Tugas 5: Interaktivitas dengan JavaScript (AJAX)
 
 Pola dari Tutorial 05 (yang dipakai di Projects) sekarang diterapkan ke bagian **Music** dari Tugas 3 dan 4. Tidak ada migrasi baru di tugas ini.

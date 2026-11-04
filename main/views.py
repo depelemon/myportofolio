@@ -133,7 +133,7 @@ def get_projects_json(request):
     return JsonResponse(data, safe=False)
 
 def show_projects(request):
-    # Daftar proyek diambil browser lewat AJAX dari get_projects_json.
+    # Daftar proyek diambil browser lewat AJAX dari API DRF versi 1.
     title_query = request.GET.get("title", "").strip()
 
     context = {
@@ -242,7 +242,7 @@ def get_music_json(request):
     return JsonResponse(data, safe=False)
 
 def show_music(request):
-    # Daftar musik diambil browser lewat AJAX dari get_music_json.
+    # Daftar musik diambil browser lewat AJAX dari API DRF versi 1.
     title_query = request.GET.get("title", "").strip()
 
     context = {

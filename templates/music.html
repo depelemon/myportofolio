@@ -84,18 +84,18 @@
     </div>
 {% endif %}
 
+{% csrf_token %}
 <script>
     // Konfigurasi
-    const MUSIC_ENDPOINT = "{% url 'main:get_music_json' %}";
-    const CREATE_MUSIC_ENDPOINT = "{% url 'main:create_music_ajax' %}";
+    const MUSIC_ENDPOINT = "{% url 'api:music-list' %}";
     const MUSIC_DETAIL_URL_TEMPLATE = "{% url 'main:music_detail' '00000000-0000-0000-0000-000000000000' %}";
     const MUSIC_EDIT_URL_TEMPLATE = "{% url 'main:update_music' '00000000-0000-0000-0000-000000000000' %}";
-    const MUSIC_DELETE_URL_TEMPLATE = "{% url 'main:delete_music' '00000000-0000-0000-0000-000000000000' %}";
-    const MUSIC_STAR_URL_TEMPLATE = "{% url 'main:toggle_music_star' '00000000-0000-0000-0000-000000000000' %}";
+    const MUSIC_DELETE_URL_TEMPLATE = "{% url 'api:music-detail' '00000000-0000-0000-0000-000000000000' %}";
+    const MUSIC_STAR_URL_TEMPLATE = "{% url 'api:music-star' '00000000-0000-0000-0000-000000000000' %}";
     const LOGIN_URL = "{% url 'main:login' %}";
 
     // Hanya untuk menampilkan/menyembunyikan tombol. Hak akses sebenarnya
-    // tetap diperiksa di view (lihat main/roles.py).
+    // tetap diperiksa oleh permission API (lihat main/permissions.py).
     const IS_AUTHENTICATED = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
     const CAN_EDIT = "{{ can_edit|yesno:'true,false' }}" === "true";
     const CAN_MANAGE = "{{ can_manage|yesno:'true,false' }}" === "true";
@@ -123,9 +123,9 @@
         musicList.classList.toggle('hide', !showList);
     }
 
-    // Tombol star: form AJAX untuk pengguna login, link ke login untuk pengunjung
+    // Tombol star AJAX untuk pengguna login, link ke login untuk pengunjung
     function buildStarHtml(item) {
-        const music = item.fields;
+        const music = item;
         const count = `<span class="star-count">${escapeHtml(music.star_count)}</span>`;
 
         if (!IS_AUTHENTICATED) {
@@ -140,7 +140,7 @@
         return `<button type="button"
                         class="button button-star${starredClass}"
                         data-action="star"
-                        data-url="${escapeHtml(buildUrl(MUSIC_STAR_URL_TEMPLATE, item.pk))}"
+                        data-url="${escapeHtml(buildUrl(MUSIC_STAR_URL_TEMPLATE, item.id))}"
                         aria-pressed="${music.is_starred}"
                         title="${music.is_starred ? 'Batalkan star' : 'Beri star'}">
                     <span aria-hidden="true">★</span>
@@ -152,14 +152,14 @@
     // Membuat elemen card musik. Setiap nilai dari server di-escape sebelum
     // masuk ke innerHTML, termasuk yang dipakai sebagai atribut (src, href).
     function buildMusicCardElement(item) {
-        const music = item.fields;
+        const music = item;
 
         const editHtml = CAN_EDIT
-            ? `<a href="${escapeHtml(buildUrl(MUSIC_EDIT_URL_TEMPLATE, item.pk))}" class="button button-secondary">Edit</a>`
+            ? `<a href="${escapeHtml(buildUrl(MUSIC_EDIT_URL_TEMPLATE, item.id))}" class="button button-secondary">Edit</a>`
             : '';
         const deleteHtml = CAN_MANAGE
             ? `<button type="button" class="button button-danger" data-action="delete"
-                       data-url="${escapeHtml(buildUrl(MUSIC_DELETE_URL_TEMPLATE, item.pk))}"
+                       data-url="${escapeHtml(buildUrl(MUSIC_DELETE_URL_TEMPLATE, item.id))}"
                        data-name="${escapeHtml(music.name)}">Hapus Musik</button>`
             : '';
 
@@ -168,7 +168,7 @@
         li.innerHTML = `
             <p class="item-date">${escapeHtml(formatDate(music.released_at))}</p>
             <h3>
-                <a href="${escapeHtml(buildUrl(MUSIC_DETAIL_URL_TEMPLATE, item.pk))}"
+                <a href="${escapeHtml(buildUrl(MUSIC_DETAIL_URL_TEMPLATE, item.id))}"
                    class="item-card__heading-link">${escapeHtml(music.name)}</a>
             </h3>
             <p class="item-description">${escapeHtml(music.description).replaceAll('\n', '<br>')}</p>
@@ -256,22 +256,7 @@
         button.disabled = true;
 
         try {
-            const response = await fetch(button.dataset.url, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken'),
-                },
-            });
-
-            // Sesi login habis: @login_required mengarahkan ke halaman login
-            if (response.redirected) {
-                window.location.href = response.url;
-                return;
-            }
-            if (!response.ok) throw new Error(`Failed to toggle star (status ${response.status})`);
-
-            const { is_starred, star_count } = await response.json();
+            const { is_starred, star_count } = await writeApi(button.dataset.url, 'POST');
             button.classList.toggle('is-starred', is_starred);
             button.setAttribute('aria-pressed', is_starred);
             button.title = is_starred ? 'Batalkan star' : 'Beri star';
@@ -279,14 +264,13 @@
             button.querySelector('.star-count').textContent = star_count;
         } catch (error) {
             console.error('Error toggling star:', error);
-            showToast('Gagal memberi star', 'Silakan coba lagi.', 'error');
+            showToast('Gagal memberi star', error.message, 'error');
         } finally {
             button.disabled = false;
         }
     }
 
-    // Isi modal hapus dengan musik yang dipilih. Penghapusan tetap lewat
-    // form POST biasa (dengan token CSRF) ke view delete_music.
+    // Isi modal konfirmasi; submit memakai DELETE ke API DRF.
     function openDeleteModal(button) {
         document.getElementById('delete-music-name').textContent = button.dataset.name;
         document.getElementById('delete-music-form').action = button.dataset.url;
@@ -297,7 +281,7 @@
     // dipasang sekali pada <ul>, bukan pada tiap tombol.
     musicList.addEventListener('click', function (event) {
         const button = event.target.closest('button[data-action]');
-        if (!button) return;
+        if (!button || button.disabled) return;
 
         if (button.dataset.action === 'star') {
             toggleStar(button);
@@ -314,29 +298,17 @@
         submitButton.disabled = true;
 
         try {
-            // FormData ikut membawa csrfmiddlewaretoken dari {% csrf_token %};
-            // header X-CSRFToken dikirim juga sebagai cara yang setara.
-            const response = await fetch(CREATE_MUSIC_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken'),
-                },
-                body: new FormData(musicForm),
-            });
-            const result = await response.json().catch(() => ({}));
-
-            if (response.ok) {
-                musicForm.reset();
-                document.getElementById('add-music-modal').hidePopover();
-                showToast('Berhasil', 'Musik baru berhasil ditambahkan!', 'success');
-                fetchMusic(searchInput.value.trim());
-            } else {
-                showToast('Gagal menambahkan musik', extractErrorMessage(result, response.status), 'error');
-            }
+            const fields = new FormData(musicForm);
+            const payload = Object.fromEntries(['name', 'description', 'released_at', 'audio_path']
+                .map(name => [name, fields.get(name)]));
+            await writeApi(MUSIC_ENDPOINT, 'POST', payload);
+            musicForm.reset();
+            document.getElementById('add-music-modal').hidePopover();
+            showToast('Berhasil', 'Musik baru berhasil ditambahkan!', 'success');
+            await fetchMusic(searchInput.value.trim());
         } catch (error) {
             console.error('Error adding music:', error);
-            showToast('Gagal menambahkan musik', 'Tidak dapat terhubung ke server. Silakan coba lagi.', 'error');
+            showToast('Gagal menambahkan musik', error.message, 'error');
         } finally {
             submitButton.disabled = false;
         }
@@ -346,6 +318,24 @@
     if (musicForm) {
         musicForm.addEventListener('submit', addMusic);
     }
+
+    const deleteForm = document.getElementById('delete-music-form');
+    if (deleteForm) deleteForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const button = deleteForm.querySelector('button[type="submit"]');
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+            await writeApi(deleteForm.action, 'DELETE');
+            deleteModal.hidePopover();
+            showToast('Berhasil', 'Musik berhasil dihapus.', 'success');
+            await fetchMusic(searchInput.value.trim());
+        } catch (error) {
+            showToast('Gagal menghapus musik', error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
 
     // Start application
     fetchMusic(searchInput.value.trim());

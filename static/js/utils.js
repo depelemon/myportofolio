@@ -52,3 +52,25 @@ function extractErrorMessage(result, status) {
     }
     return (result && result.message) || `Terjadi kesalahan (status ${status}).`;
 }
+
+// DRF uses flat field errors ({title: ["..."]}) and general {detail: "..."}.
+function apiErrorMessage(data, status) {
+    const messages = Object.values(data || {}).flat().filter(value => typeof value === 'string');
+    return messages.join(' ') || `Terjadi kesalahan (status ${status}).`;
+}
+
+async function writeApi(url, method, payload) {
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+    });
+    if (response.status === 204) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+    return data;
+}
