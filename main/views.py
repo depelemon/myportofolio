@@ -249,6 +249,7 @@ def show_music(request):
         "name": "David Liman",
         "title_query": title_query,
         "form": MusicForm(),
+        "edit_form": MusicForm(auto_id="edit_%s"),
     }
     return render(request, "music.html", context)
 

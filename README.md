@@ -66,20 +66,65 @@ Berikut langkah-langkah untuk menjalankan proyek ini secara lokal.
 
 # Progres Mingguan
 
+## Tugas 6: API Music dan penyuntingan tanpa reload
+
+Bagian mandiri yang dinilai adalah **Music**, memakai model dan relasi star dari Tugas 3-5.
+API `/api/v1/music/` melanjutkan implementasi DRF yang sudah tersedia dari Tutorial 7.
+Tidak ada perubahan model atau migrasi baru.
+
+| Peran                    | Daftar/detail | Beri/batalkan star | PUT/PATCH | POST data baru | DELETE |
+| ------------------------ | ------------- | ------------------ | --------- | -------------- | ------ |
+| Pengunjung               | Ya            | Tidak              | Tidak     | Tidak          | Tidak  |
+| Pengguna biasa           | Ya            | Ya                 | Tidak     | Tidak          | Tidak  |
+| Editor (grup `Editor`) | Ya            | Ya                 | Ya        | Tidak          | Tidak  |
+| Pemilik (superuser)      | Ya            | Ya                 | Ya        | Ya             | Ya     |
+
+`MusicSerializer` mendefinisikan field secara eksplisit, membersihkan teks dengan
+`strip_tags`, dan menolak teks kosong setelah pembersihan. `star_count`, `is_starred`,
+`audio_url`, dan `id` bersifat read-only. API tidak mengirim identitas pemberi star.
+Permission diperiksa server melalui `IsPortfolioOwnerOrEditorOrReadOnly`, sedangkan
+endpoint star memakai `IsAuthenticated` dan selalu mengambil akun dari `request.user`.
+View HTML lama juga membatasi tambah/hapus ke pemilik dan edit ke Editor/pemilik.
+
+Pada `/music/`, daftar dan pencarian `?title=...` memakai GET; tambah memakai POST;
+modal **Edit** mengambil detail terbaru lalu menyimpan lewat PATCH; star memakai POST;
+dan konfirmasi hapus memakai DELETE. Semua berjalan tanpa reload. Form edit memiliki
+ID input tersendiri agar label tidak berbenturan dengan form tambah. Error API 400/403
+ditampilkan lewat toast, input gagal tetap berada di modal, dan tombol submit dinonaktifkan
+selama request. Setiap request tulis mengirim `X-CSRFToken`; teks dinamis memakai
+`escapeHtml`, `textContent`, atau properti `value`.
+
+### Menjalankan dan memverifikasi Tugas 6
+
+```bash
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py check
+python manage.py test main
+python manage.py runserver
+```
+
+Buka `/music/`, `/api/v1/music/` (Browsable API), dan `/projects/` (Tutorial 7).
+Buat superuser dengan `python manage.py createsuperuser`; akun biasa dapat didaftarkan
+di `/register/`, lalu ditambahkan ke grup `Editor` melalui Django Admin untuk menguji Editor.
+Pengujian API memeriksa empat peran, isi database setelah penolakan, validasi,
+star dari akun yang benar, objek hilang, privasi, serta session login nyata dengan
+`APIClient(enforce_csrf_checks=True)` dan `.login()` untuk CSRF.
+
 ## Tutorial 7: Django REST Framework
 
 Projects dan Music sekarang memiliki API versi 1. Halaman daftar memakai objek JSON datar
 (`id`, `title`/`name`, dan field lainnya), menggantikan pembungkus `pk`/`fields` pada API lama.
 Model dan data sebelumnya tetap dipakai, sehingga tidak ada migrasi baru.
 
-| Method | Projects | Music | Hak akses |
-| --- | --- | --- | --- |
-| GET / HEAD | `/api/v1/projects/` | `/api/v1/music/` | Publik; pencarian `?title=...` |
-| POST | `/api/v1/projects/` | `/api/v1/music/` | Pemilik (superuser) |
-| GET / HEAD | `/api/v1/projects/<uuid>/` | `/api/v1/music/<uuid>/` | Publik |
-| PUT / PATCH | `/api/v1/projects/<uuid>/` | `/api/v1/music/<uuid>/` | Pemilik; Editor juga boleh mengubah Music |
-| DELETE | `/api/v1/projects/<uuid>/` | `/api/v1/music/<uuid>/` | Pemilik |
-| POST | `/api/v1/projects/<uuid>/star/` | `/api/v1/music/<uuid>/star/` | Semua akun login |
+| Method      | Projects                          | Music                          | Hak akses                                 |
+| ----------- | --------------------------------- | ------------------------------ | ----------------------------------------- |
+| GET / HEAD  | `/api/v1/projects/`             | `/api/v1/music/`             | Publik; pencarian `?title=...`          |
+| POST        | `/api/v1/projects/`             | `/api/v1/music/`             | Pemilik (superuser)                       |
+| GET / HEAD  | `/api/v1/projects/<uuid>/`      | `/api/v1/music/<uuid>/`      | Publik                                    |
+| PUT / PATCH | `/api/v1/projects/<uuid>/`      | `/api/v1/music/<uuid>/`      | Pemilik; Editor juga boleh mengubah Music |
+| DELETE      | `/api/v1/projects/<uuid>/`      | `/api/v1/music/<uuid>/`      | Pemilik                                   |
+| POST        | `/api/v1/projects/<uuid>/star/` | `/api/v1/music/<uuid>/star/` | Semua akun login                          |
 
 `SessionAuthentication` memakai login yang sudah ada. Semua operasi tulis melalui session
 wajib menyertakan CSRF. Browsable API tersedia pada endpoint yang sama, login API pada
@@ -208,24 +253,23 @@ Untuk branching, saya memutuskan menggunakan branch bertahap dari branch dev ke 
 
 Untuk setiap fitur baru yang signifikan, akan ada branch baru yang dibuat dari branch dev (contohnya feat/<feature-name></feature>). Dengan melakukan branching bertahap, setiap perubahan dapat diuji secara terpisah sebelum digabungkan ke branch utama, sehingga meminimalkan potensi konflik dan memastikan stabilitas kode.
 
-# AI Disclosure (last upd: Tugas Individu 5)
+# AI Disclosure (last upd: Tugas Individu 6)
 
-Saya menggunakan Claude Code dan Copilot (BYOK dengan API key dari DeepSeek), serta Claude via Web Browser untuk membantu proses pembelajaran di Tugas Individu 1 ini. Claude via Web Browser saya gunakan untuk menanyakan konsep-konsep Web Development, sedangkan Claude Code dan Copilot untuk agentic atau untuk pertanyaan yang membutuhkan konteks kode.
+Untuk Tugas 6, OpenAI Codex membantu membaca spesifikasi PDF, mengaudit implementasi
+Music yang sudah ada, menambahkan modal edit berbasis PATCH, memperluas pengujian
+permission/database/CSRF, serta menyusun dokumentasi dan draf jawaban reflektif.
 
 Prompt yang saya gunakan:
 
 ```
-Tugas 5:
-1. apakah template html sekarang sudah menampilkan hanya kerangka halaman dan
-   fetch data melalui js, atau masih ada yang hardcoded?
-2. apa plus minusnya sih pakai jsonresponse dibanding serializer
-3. apa itu ajax di javascript (bedanya dengan javascript biasa yang kita pakai apa?) dan apa itu XSS
-4. coba lengkapi tugas 5 saya, sesuaikan dengan modul yang ada (music dan project, bukan project saja)
+Baca pdf, terdapat spesifikasi tugas, di kodeku sudah ada modul Music dan Projects, baca kode untuk tahu API dan template yang sudah ada. 
+- Tambahkan modal edit pada daftar Music: GET detail terbaru, isi form melalui properti `value`, dan PATCH melalui helper `writeApi` yang menyertakan CSRF.
+- Perluas APITestCase agar penolakan juga memeriksa database, uji login nyata untuk CSRF, cookie pengguna biasa/Editor, validasi update, star, dan objek hilang.
+- Susun progres mingguan, cara verifikasi, dan draf jawaban reflektif bahasa Indonesia, nanti akan saya tinjau ulang.
 ```
 
-* AI menambahkan hal di luar kriteria soal: file `roles.py`, `stars.py`, `context_processors.py`, halaman detail musik, dan proteksi pada Projects. Saya meminta penjelasannya dulu sebelum memutuskan untuk keep apa yang diubah AI. Alasannya masuk akal: tanpa decorator, cek peran harus ditulis ulang di 6 view. Terbukti pula view update/delete Projects dari tutorial sebelumnya bisa diakses tanpa login. Namun, strukturnya jadi berbeda dari pola tutorial, sehingga saya perlu memahami tiap file sebelum commit.
+* AI menambahkan hal di luar kriteria soal: file `roles.py`, `stars.py`, `context_processors.py`, halaman detail musik, dan proteksi pada Projects. Saya meminta penjelasannya dulu sebelum memutuskan untuk keep apa yang diubah AI. Alasannya masuk akal: tanpa decorator, cek peran harus ditulis ulang di 6 view. Terbukti pula view update/delete Projects dari tutorial sebelumnya bisa diakses tanpa login.
 * AI menemukan bahwa `/api/project/` membocorkan username pengguna yang memberi star (`use_natural_foreign_keys`). Saya memverifikasinya lewat output JSON sebelum dan sesudah perbaikan.
-* Tugas 5: saya meminta AI mengaudit dulu template mana yang masih dirender server sebelum mengimplementasikan. Hasilnya, Projects sudah AJAX tetapi Music (bagian Tugas 3/4 yang dinilai) masih memakai `{% for %}`, dan pencarian Music hanya mengambil HTML halaman lalu menyalin isi `<ul>`-nya, bukan JSON. AI juga menambahkan hal di luar checklist: toggle star via AJAX, modal hapus bersama, dan `static/js/utils.js`. Keterbatasan yang perlu saya cek sendiri: test Django hanya menguji sisi server, jadi perilaku JavaScript (loading, toast, modal) tetap perlu dicoba manual di browser untuk setiap peran.
 
 # Pertanyaan Reflektif
 
@@ -352,3 +396,35 @@ Jawab: XSS adalah serangan di mana penyerang menyisipkan kode (biasanya JavaScri
 Template Django melakukan *auto-escaping*: `{{ music.name }}` otomatis mengubah `<` menjadi `&lt;`, `"` menjadi `&quot;`, dan seterusnya, sehingga data tampil sebagai teks kecuali developer sengaja memakai `|safe`. Data dari AJAX tidak melewati template engine. JSON dari server berisi string mentah, dan ketika JavaScript menyisipkannya lewat `innerHTML` atau template literal, browser memperlakukannya sebagai HTML. Jadi perlindungan yang tadinya otomatis hilang, dan developer harus ingat meng-escape setiap nilai secara manual. Satu nilai saja yang terlewat sudah cukup menjadi celah.
 
 Karena itu di halaman Music saya memakai dua lapis pertahanan: `escapeHtml()` atau `textContent` untuk setiap nilai yang ditampilkan lewat JavaScript, dan `strip_tags` di `clean_<field>` pada `MusicForm` agar tag HTML tidak tersimpan di database sejak awal.
+
+### Tugas 6
+
+1. **Apa itu REST, mengapa JSON belum cukup, dan apa perbedaan PUT/PATCH?**
+
+   REST (Representational State Transfer) adalah gaya arsitektur untuk membangun sistem terdistribusi. Prinsipnya mencakup pemisahan client dan server, request yang stateless, aturan cache, uniform interface, layered system, serta code-on-demand yang bersifat opsional.
+
+   Uniform interface berarti resource punya identitas yang jelas, diakses atau diubah melalui representasinya, dan menggunakan pesan yang cukup jelas untuk dipahami. Selain itu, hypermedia digunakan untuk mengarahkan perpindahan state aplikasi.
+
+   Menggunakan JSON saja belum membuat sebuah API mengikuti REST, karena JSON hanya mengatur format data. Misalnya, endpoint yang menghapus data melalui GET tetap tidak sesuai dengan semantik HTTP, meskipun responsnya berbentuk JSON. Proyek ini sudah menggunakan pola resource dan method REST. Namun, autentikasinya masih memakai session Django yang menyimpan state di server, sehingga belum memenuhi prinsip stateless REST secara ketat.
+
+   Perbedaan PUT dan PATCH terletak pada cakupan perubahannya. PUT digunakan untuk mengirim representasi pengganti suatu resource dan bersifat idempotent: request yang sama, jika diulang, menghasilkan keadaan akhir yang sama. Contohnya adalah mengirim name, description, released_at, dan audio_path ke /api/v1/music/<uuid></uuid>/. Pada API ini, semua field wajib harus disertakan, sedangkan field opsional mengikuti perilaku serializer.
+
+   PATCH digunakan untuk memperbarui sebagian data. Misalnya, {"name": "Judul Baru"} hanya mengubah judul dan membiarkan field lain tetap seperti sebelumnya. Secara umum PATCH tidak selalu idempotent, tetapi perubahan berupa assignment nilai seperti contoh tersebut bersifat idempotent. Karena modal edit hanya perlu mengirim field yang diperbarui, proyek ini menggunakan PATCH.
+2. **Apa peran serializer dan keuntungannya dibanding dictionary/JsonResponse?**
+
+   Serializer membantu mengubah objek model menjadi data primitif yang bisa dirender sebagai JSON. Saat menerima data dari pengguna, serializer juga memvalidasinya sebelum data tersebut disimpan.
+   Dengan `<span>ModelSerializer</span>`, pemetaan field dan sebagian validator dapat diturunkan dari model. Kita juga mendapat implementasi `<span>create()</span>` dan `<span>update()</span>`. Alur penggunaannya adalah membuat `<span>Serializer(data=...)</span>`, menjalankan `<span>is_valid()</span>`, lalu memanggil `<span>save()</span>`. Untuk pembaruan sebagian melalui PATCH, digunakan `<span>partial=True</span>`.
+   Dibandingkan menyusun dictionary secara manual, serializer membuat representasi data dan aturan validasi lebih mudah digunakan kembali pada endpoint daftar maupun detail. Pesan error juga konsisten per field, sementara field yang boleh ditampilkan atau hanya boleh dibaca dapat ditentukan secara eksplisit.
+   Pada Music, `<span>validate_name</span>`, `<span>validate_description</span>`, dan `<span>validate_audio_path</span>` membersihkan tag serta menolak nilai yang menjadi kosong setelah dibersihkan. Sementara itu, `<span>SerializerMethodField</span>` menghitung jumlah star dan status star pengguna tanpa mengekspos relasi pengguna. Meski begitu, permission tetap perlu diperiksa, dan data yang ditampilkan di browser tetap memerlukan escaping HTML.
+3. **Apa perbedaan autentikasi dan otorisasi, serta mengapa permission harus di server?**
+
+   Autentikasi menjawab pertanyaan “siapa yang mengirim request?”, sedangkan otorisasi menjawab “apa yang boleh dilakukan pengguna tersebut?”. Sebagai contoh, `<span>SessionAuthentication</span>` membaca session login untuk menentukan `<span>request.user</span>`. Setelah identitasnya diketahui, permission menentukan tindakan yang diizinkan.
+   Dalam proyek ini, akun Editor bisa mengubah Music dan memberi star. Namun, membuat dan menghapus Music tetap menjadi hak superuser. Jadi, berhasil login tidak otomatis berarti pengguna boleh melakukan semua tindakan.
+   Menyembunyikan tombol di halaman hanya membantu mengarahkan pengguna. Mereka tetap bisa mengirim request langsung melalui `<span>fetch</span>`, curl, atau aplikasi lain. Karena itu, pembatasan akses harus diterapkan di server. Permission class diperiksa sebelum logika view dijalankan, sehingga request POST atau DELETE dari Editor ditolak dengan status 403 dan tidak mengubah database.
+   Endpoint star menggunakan `<span>IsAuthenticated</span>` dan mengambil identitas pengguna dari `<span>request.user</span>`. Dengan begitu, pengguna tidak bisa menentukan akun pemberi star hanya dengan mengirim ID akun lain melalui body request.
+4. **Mengapa SessionAuthentication membutuhkan CSRF dan force_authenticate belum cukup?**
+
+   Browser dapat menyertakan cookie session secara otomatis ketika aturan cookie mengizinkannya. Artinya, adanya cookie login belum cukup untuk membuktikan bahwa suatu tindakan memang berasal dari halaman yang sah. Situs lain bisa mencoba memicu request menggunakan session pengguna yang masih aktif.
+   Untuk request dengan session yang terautentikasi, DRF memeriksa CSRF pada method tidak aman seperti POST, PUT, PATCH, dan DELETE. JavaScript membaca cookie `<span>csrftoken</span>`, lalu mengirim nilainya melalui header `<span>X-CSRFToken</span>`. Server kemudian memvalidasi token tersebut dan memeriksa Origin atau Referer sesuai kondisi request.
+   Pengujian dengan `<span>force_authenticate</span>` saja belum mencakup proses ini. Metode tersebut langsung memasang identitas pengguna tanpa melewati alur autentikasi session normal, sehingga pemeriksaan CSRF oleh `<span>SessionAuthentication</span>` tidak ikut diuji.
+   Karena itu, test Music menggunakan `<span>APIClient(enforce_csrf_checks=True)</span>` dan `<span>.login()</span>`. Request tanpa token harus ditolak dengan status 403 tanpa mengubah database, sedangkan request dengan token yang diperoleh dari halaman Music harus berhasil. Ketersediaan cookie CSRF juga diuji untuk akun biasa dan Editor agar fitur star tetap berfungsi meskipun mereka tidak memiliki form tambah.

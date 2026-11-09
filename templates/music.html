@@ -84,12 +84,16 @@
     </div>
 {% endif %}
 
+{% if can_edit %}
+    {% include "components/form_modal.html" with modal_id="edit-music-modal" form_id="edit-music-form" title="Edit Musik" action="" submit_label="Simpan Perubahan" form=edit_form %}
+{% endif %}
+
 {% csrf_token %}
 <script>
     // Konfigurasi
     const MUSIC_ENDPOINT = "{% url 'api:music-list' %}";
     const MUSIC_DETAIL_URL_TEMPLATE = "{% url 'main:music_detail' '00000000-0000-0000-0000-000000000000' %}";
-    const MUSIC_EDIT_URL_TEMPLATE = "{% url 'main:update_music' '00000000-0000-0000-0000-000000000000' %}";
+    const MUSIC_API_DETAIL_URL_TEMPLATE = "{% url 'api:music-detail' '00000000-0000-0000-0000-000000000000' %}";
     const MUSIC_DELETE_URL_TEMPLATE = "{% url 'api:music-detail' '00000000-0000-0000-0000-000000000000' %}";
     const MUSIC_STAR_URL_TEMPLATE = "{% url 'api:music-star' '00000000-0000-0000-0000-000000000000' %}";
     const LOGIN_URL = "{% url 'main:login' %}";
@@ -114,6 +118,9 @@
     // Dua elemen di bawah hanya dirender untuk pemilik portofolio (null untuk peran lain)
     const musicForm = document.getElementById('music-form');
     const deleteModal = document.getElementById('delete-music-modal');
+    const editForm = document.getElementById('edit-music-form');
+    const editModal = document.getElementById('edit-music-modal');
+    const MUSIC_FIELDS = ['name', 'description', 'released_at', 'audio_path'];
 
     // Menyembunyikan/menampilkan bagian halaman
     function displayPageSection({ showLoading = false, showError = false, showEmpty = false, showList = false }) {
@@ -155,7 +162,8 @@
         const music = item;
 
         const editHtml = CAN_EDIT
-            ? `<a href="${escapeHtml(buildUrl(MUSIC_EDIT_URL_TEMPLATE, item.id))}" class="button button-secondary">Edit</a>`
+            ? `<button type="button" class="button button-secondary" data-action="edit"
+                       data-url="${escapeHtml(buildUrl(MUSIC_API_DETAIL_URL_TEMPLATE, item.id))}">Edit</button>`
             : '';
         const deleteHtml = CAN_MANAGE
             ? `<button type="button" class="button button-danger" data-action="delete"
@@ -277,6 +285,42 @@
         deleteModal.showPopover();
     }
 
+    // Ambil detail terbaru sebelum mengedit; gunakan value, bukan innerHTML.
+    async function openEditModal(button) {
+        button.disabled = true;
+        try {
+            const response = await fetch(button.dataset.url, { headers: { 'Accept': 'application/json' } });
+            const data = await response.json();
+            if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+            MUSIC_FIELDS.forEach(name => { editForm.elements[name].value = data[name]; });
+            editForm.dataset.url = button.dataset.url;
+            editModal.showPopover();
+        } catch (error) {
+            showToast('Gagal membuka musik', error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    if (editForm) editForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const button = editForm.querySelector('button[type="submit"]');
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+            const fields = new FormData(editForm);
+            const payload = Object.fromEntries(MUSIC_FIELDS.map(name => [name, fields.get(name)]));
+            await writeApi(editForm.dataset.url, 'PATCH', payload);
+            editModal.hidePopover();
+            showToast('Berhasil', 'Musik berhasil diperbarui.', 'success');
+            await fetchMusic(searchInput.value.trim());
+        } catch (error) {
+            showToast('Gagal mengubah musik', error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
+
     // Event delegation: card dibuat ulang setiap fetch, jadi listener
     // dipasang sekali pada <ul>, bukan pada tiap tombol.
     musicList.addEventListener('click', function (event) {
@@ -287,6 +331,8 @@
             toggleStar(button);
         } else if (button.dataset.action === 'delete' && deleteModal) {
             openDeleteModal(button);
+        } else if (button.dataset.action === 'edit' && editForm) {
+            openEditModal(button);
         }
     });
 

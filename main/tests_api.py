@@ -171,9 +171,10 @@ class MusicAPITest(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.owner = User.objects.create_superuser("music-owner", password="test-password")
-        cls.visitor = User.objects.create_user("music-visitor")
-        cls.editor = User.objects.create_user("music-editor")
-        cls.editor.groups.add(Group.objects.get(name="Editor"))
+        cls.visitor = User.objects.create_user("music-visitor", password="test-password")
+        cls.editor = User.objects.create_user("music-editor", password="test-password")
+        editor_group, _ = Group.objects.get_or_create(name="Editor")
+        cls.editor.groups.add(editor_group)
         cls.music = Music.objects.create(
             name="Main Menu", description="Piano", released_at=date(2026, 11, 4),
             audio_path="audio/main_menu.mp3",
@@ -205,12 +206,15 @@ class MusicAPITest(APITestCase):
         self.client.force_authenticate(self.owner)
         response = self.client.post(self.list_url, self.payload, format="json")
         self.assertEqual(response.status_code, 201)
+        created = Music.objects.get(pk=response.data["id"])
+        self.assertEqual(created.name, self.payload["name"])
         self.assertEqual(response.data["audio_path"], "audio/language.mp3")
         self.assertEqual(response.data["audio_url"], "/static/audio/language.mp3")
         for field in ("name", "description", "audio_path"):
             response = self.client.post(self.list_url, {**self.payload, field: "<br>"}, format="json")
             self.assertEqual(response.status_code, 400)
             self.assertIn(field, response.data)
+        self.assertEqual(Music.objects.count(), 2)
         self.assertEqual(self.client.patch(self.detail_url, {"name": "<b>Clean</b>"}, format="json").data["name"], "Clean")
         self.assertEqual(self.client.put(self.detail_url, {"name": "Incomplete"}, format="json").status_code, 400)
         self.assertEqual(self.client.put(self.detail_url, self.payload, format="json").status_code, 200)
@@ -229,6 +233,10 @@ class MusicAPITest(APITestCase):
         self.assertEqual(self.client.put(self.detail_url, self.payload, format="json").status_code, 200)
         self.assertEqual(self.client.post(self.list_url, self.payload, format="json").status_code, 403)
         self.assertEqual(self.client.delete(self.detail_url).status_code, 403)
+        self.assertEqual(Music.objects.count(), 1)
+        self.music.refresh_from_db()
+        self.assertEqual(self.music.name, self.payload["name"])
+        self.assertEqual(self.music.description, self.payload["description"])
 
     def test_guests_and_regular_users_cannot_manage_music(self):
         for user in (None, self.visitor):
@@ -238,15 +246,24 @@ class MusicAPITest(APITestCase):
             self.assertEqual(self.client.patch(self.detail_url, {"name": "Changed"}).status_code, 403)
             self.assertEqual(self.client.put(self.detail_url, self.payload).status_code, 403)
             self.assertEqual(self.client.delete(self.detail_url).status_code, 403)
+            self.assertEqual(Music.objects.count(), 1)
+            self.music.refresh_from_db()
+            self.assertEqual(self.music.name, "Main Menu")
+            self.assertEqual(self.music.description, "Piano")
+            self.assertEqual(self.music.audio_path, "audio/main_menu.mp3")
+            self.assertEqual(self.music.released_at, date(2026, 11, 4))
 
     def test_star_read_only_fields_and_methods(self):
         self.assertEqual(self.client.post(self.star_url).status_code, 403)
+        self.assertEqual(self.music.starred_by.count(), 0)
         self.client.force_authenticate(self.visitor)
         response = self.client.post(self.star_url, {"user": self.owner.pk})
         self.assertTrue(response.data["is_starred"])
         self.assertEqual(response.data["star_count"], 1)
+        self.assertTrue(self.music.starred_by.filter(pk=self.visitor.pk).exists())
         self.assertFalse(self.music.starred_by.filter(pk=self.owner.pk).exists())
         self.assertFalse(self.client.post(self.star_url).data["is_starred"])
+        self.assertEqual(self.music.starred_by.count(), 0)
         self.assertEqual(self.client.get(self.star_url).status_code, 405)
         self.client.force_authenticate(self.owner)
         response = self.client.post(self.list_url, {
@@ -259,11 +276,13 @@ class MusicAPITest(APITestCase):
 
     def test_session_csrf_and_safe_methods(self):
         client = APIClient(enforce_csrf_checks=True)
-        client.force_login(self.owner)
+        self.assertTrue(client.login(username=self.owner.username, password="test-password"))
         self.assertEqual(client.post(self.list_url, self.payload, format="json").status_code, 403)
         self.assertEqual(client.patch(self.detail_url, {"name": "Changed"}).status_code, 403)
         self.assertEqual(client.delete(self.detail_url).status_code, 403)
         self.assertEqual(client.post(self.star_url).status_code, 403)
+        self.assertEqual(Music.objects.count(), 1)
+        self.assertEqual(self.music.starred_by.count(), 0)
         client.get(reverse("main:show_music"))
         token = client.cookies["csrftoken"].value
         self.assertEqual(client.post(self.list_url, self.payload, format="json", HTTP_X_CSRFTOKEN=token).status_code, 201)
@@ -272,6 +291,72 @@ class MusicAPITest(APITestCase):
             self.assertEqual(client.options(url).status_code, 200)
         self.music.refresh_from_db()
         self.assertEqual(self.music.name, "Main Menu")
+
+    def test_editor_and_user_receive_csrf_cookie_and_can_star(self):
+        for user in (self.visitor, self.editor):
+            with self.subTest(user=user.username):
+                client = APIClient(enforce_csrf_checks=True)
+                self.assertTrue(client.login(username=user.username, password="test-password"))
+                page = client.get(reverse("main:show_music"))
+                self.assertEqual(page.status_code, 200)
+                token = client.cookies["csrftoken"].value
+                self.assertEqual(client.post(self.star_url).status_code, 403)
+                self.assertFalse(self.music.starred_by.filter(pk=user.pk).exists())
+                response = client.post(self.star_url, HTTP_X_CSRFTOKEN=token)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.data["is_starred"])
+                self.assertTrue(self.music.starred_by.filter(pk=user.pk).exists())
+                if user == self.editor:
+                    self.assertEqual(client.patch(self.detail_url, {"name": "Without CSRF"}).status_code, 403)
+                    self.music.refresh_from_db()
+                    self.assertEqual(self.music.name, "Main Menu")
+                    response = client.patch(self.detail_url, {"name": "Editor with CSRF"}, HTTP_X_CSRFTOKEN=token)
+                    self.assertEqual(response.status_code, 200)
+                    self.music.refresh_from_db()
+                    self.assertEqual(self.music.name, "Editor with CSRF")
+
+    def test_invalid_updates_leave_database_unchanged(self):
+        self.client.force_authenticate(self.editor)
+        for changes in (
+            {"name": "<br>"}, {"description": "<b></b>"},
+            {"audio_path": "   "}, {"released_at": "not-a-date"},
+            {"name": "x" * 256},
+        ):
+            with self.subTest(changes=changes):
+                response = self.client.patch(self.detail_url, changes, format="json")
+                self.assertEqual(response.status_code, 400)
+                self.music.refresh_from_db()
+                self.assertEqual(self.music.name, "Main Menu")
+                self.assertEqual(self.music.description, "Piano")
+                self.assertEqual(self.music.audio_path, "audio/main_menu.mp3")
+                self.assertEqual(self.music.released_at, date(2026, 11, 4))
+
+    def test_missing_music_for_authorized_writes(self):
+        self.client.force_authenticate(self.owner)
+        detail = reverse("api:music-detail", args=[uuid.uuid4()])
+        for method, payload in (("patch", {"name": "Missing"}), ("put", self.payload), ("delete", {})):
+            self.assertEqual(getattr(self.client, method)(detail, payload, format="json").status_code, 404)
+        self.assertEqual(self.client.post(reverse("api:music-star", args=[uuid.uuid4()])).status_code, 404)
+        self.assertEqual(Music.objects.count(), 1)
+
+    def test_editor_and_owner_can_star(self):
+        for user in (self.editor, self.owner):
+            self.client.force_authenticate(user)
+            response = self.client.post(self.star_url)
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.data["is_starred"])
+            self.assertTrue(self.music.starred_by.filter(pk=user.pk).exists())
+
+    def test_browsable_api_and_edit_form_are_accessible(self):
+        response = self.client.get(self.list_url, HTTP_ACCEPT="text/html")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response["Content-Type"])
+        self.assertContains(response, "Music List")
+        self.client.force_login(self.editor)
+        response = self.client.get(reverse("main:show_music"))
+        self.assertContains(response, 'id="edit-music-form"')
+        self.assertNotContains(response, 'id="music-form"')
+        self.assertNotContains(response, 'id="delete-music-form"')
 
     def test_serializers_use_prefetched_stars(self):
         self.music.starred_by.add(self.visitor)
