@@ -64,6 +64,25 @@ Berikut langkah-langkah untuk menjalankan proyek ini secara lokal.
 
 > Catatan: pastikan `manage.py` berada satu level dengan direktori `portofolio/` saat menjalankan perintah di atas (root proyek).
 
+## Deployment otomatis ke PWS
+
+Workflow [Deploy to PWS](.github/workflows/deploy-pws.yml) berjalan pada setiap push
+ke branch `main`, termasuk merge pull request dan perubahan dokumentasi. Commit pemicu
+dikirim ke branch `master` pada `https://pws.cs.ui.ac.id/david.liman/myportofolio`,
+sesuai konfigurasi push PWS proyek ini. Push memakai fast-forward biasa tanpa force.
+
+Sebelum workflow dipakai, buka [repository secrets](https://github.com/depelemon/myportofolio/settings/secrets/actions)
+dan tambahkan dua **repository secrets**:
+
+- `PWS_USERNAME`: username dari kredensial proyek PWS.
+- `PWS_PASSWORD`: password proyek PWS, bukan password SSO UI.
+
+Kredensial diteruskan melalui environment dan Git askpass, bukan ditulis ke URL remote.
+Setelah perubahan ini masuk ke `main`, lihat tab **Actions** untuk hasil push dan dashboard
+PWS untuk status build/deployment. Workflow gagal dengan pesan yang jelas jika secret
+belum tersedia. Tidak perlu menjalankan `git push pws` setiap kali memperbarui `main`.
+Pengaturan secret mengikuti [panduan GitHub Actions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets).
+
 # Progres Mingguan
 
 ## Tugas 6: API Music dan penyuntingan tanpa reload
@@ -163,7 +182,8 @@ python manage.py test main
 ```
 
 Pengujian API mencakup CRUD, pencarian, validasi, privasi, field read-only, empat peran,
-star, method, dan session dengan/tanpa CSRF. Tidak ada commit atau deployment otomatis.
+star, method, dan session dengan/tanpa CSRF. Deployment otomatis ke PWS tersedia melalui
+workflow di atas setelah repository secrets diatur.
 
 ## Tugas 5: Interaktivitas dengan JavaScript (AJAX)
 

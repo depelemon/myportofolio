@@ -1,0 +1,53 @@
+name: Deploy to PWS
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pws
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Push main to PWS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push to PWS master
+        shell: bash
+        env:
+          PWS_USERNAME: ${{ secrets.PWS_USERNAME }}
+          PWS_PASSWORD: ${{ secrets.PWS_PASSWORD }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          if [[ -z "$PWS_USERNAME" || -z "$PWS_PASSWORD" ]]; then
+            echo "::error::Set the PWS_USERNAME and PWS_PASSWORD repository secrets first."
+            exit 1
+          fi
+
+          # Git reads credentials from the environment without putting them in the URL.
+          export GIT_ASKPASS="$RUNNER_TEMP/pws-askpass.sh"
+          trap 'rm -f "$GIT_ASKPASS"' EXIT
+          cat > "$GIT_ASKPASS" <<'ASKPASS'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' "$PWS_USERNAME" ;;
+            *Password*) printf '%s\n' "$PWS_PASSWORD" ;;
+            *) exit 1 ;;
+          esac
+          ASKPASS
+          chmod 700 "$GIT_ASKPASS"
+
+          git push https://pws.cs.ui.ac.id/david.liman/myportofolio HEAD:refs/heads/master
